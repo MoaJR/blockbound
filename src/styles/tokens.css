@@ -1,0 +1,51 @@
+:root {
+  --bg-0: #040a1c;
+  --bg-1: #071430;
+  --bg-2: #0b1d45;
+  --bg-3: #122a5c;
+  --bg-4: #1a3a78;
+
+  --ink: #eef4ff;
+  --ink-dim: #a9bce0;
+  --ink-mute: #7085b0;
+
+  --cyan: #3fe0ff;
+  --cyan-deep: #16a8d8;
+  --violet: #8a5bff;
+  --violet-deep: #5b31c9;
+  --gold: #ffc857;
+  --gold-deep: #d99a24;
+  --green: #4ade80;
+  --green-deep: #1e9d54;
+  --red: #ff5a5f;
+  --red-deep: #c62b3d;
+  --orange: #ff8a3d;
+
+  --cell: #081635;
+  --cell-2: #0b1e46;
+  --cell-edge: rgba(96, 158, 255, 0.16);
+
+  --r-sm: 10px;
+  --r-md: 16px;
+  --r-lg: 24px;
+  --r-xl: 32px;
+
+  --shadow-soft: 0 10px 26px rgba(2, 7, 22, 0.45);
+  --shadow-deep: 0 26px 60px rgba(1, 5, 18, 0.6);
+  --glow-cyan: 0 0 0 1px rgba(63, 224, 255, 0.35), 0 0 22px rgba(63, 224, 255, 0.25);
+  --glow-gold: 0 0 0 1px rgba(255, 200, 87, 0.45), 0 0 26px rgba(255, 200, 87, 0.28);
+  --glow-violet: 0 0 0 1px rgba(138, 91, 255, 0.45), 0 0 26px rgba(138, 91, 255, 0.3);
+
+  --font-display: 'Avenir Next', 'Trebuchet MS', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-body: 'Segoe UI', 'Avenir Next', system-ui, -apple-system, sans-serif;
+
+  --cell-color-0: #25c8ec;
+  --cell-color-1: #8a5bff;
+  --cell-color-2: #ffc857;
+  --cell-color-3: #4ade80;
+  --cell-color-4: #ff5f9e;
+  --cell-color-5: #4a90ff;
+
+  --cell-size: 40px;
+  --tray-h: 108px;
+}

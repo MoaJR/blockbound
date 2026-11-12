@@ -1,0 +1,814 @@
+/* ============================================================
+   RESPONSIVIDADE
+   Mobile é o caso base; aqui vêm os ajustes para telas maiores.
+   ============================================================ */
+
+/* ---------- Tablet / Desktop ---------- */
+@media (min-width: 900px) {
+  .run-screen {
+    padding: 14px 18px;
+    gap: 10px;
+  }
+
+  .hud {
+    padding: 10px 16px;
+    border-radius: 18px;
+  }
+
+  .hud__stage-label {
+    font-size: 11.5px;
+  }
+
+  .hud__stage-name {
+    font-size: 14px;
+    max-width: 260px;
+  }
+
+  .hud__score-value {
+    font-size: 36px;
+  }
+
+  .hud__crystals {
+    font-size: 13px;
+    padding: 6px 12px;
+  }
+
+  .run__body {
+    display: grid;
+    grid-template-columns: 216px minmax(0, 1fr) 248px;
+    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'relics board objectives'
+      'relics tray powers';
+    gap: 14px;
+    align-items: stretch;
+  }
+
+  .area-relics {
+    grid-area: relics;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .area-objectives {
+    grid-area: objectives;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    min-height: 0;
+  }
+
+  .area-board {
+    grid-area: board;
+    min-height: 0;
+  }
+
+  .area-tray {
+    grid-area: tray;
+    justify-content: flex-end;
+  }
+
+  .area-powers {
+    grid-area: powers;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    min-height: 0;
+  }
+
+  .area-relics .relic-rail {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .relic-rail__list {
+    flex-direction: column;
+    overflow-x: hidden;
+    overflow-y: auto;
+    max-height: 100%;
+    padding-right: 2px;
+  }
+
+  .relic-rail__item {
+    width: 100%;
+  }
+
+  .relic-rail__name {
+    max-width: none;
+    white-space: normal;
+    line-height: 1.2;
+    font-size: 11.5px;
+  }
+
+  .objective {
+    padding: 9px 11px;
+  }
+
+  .objective__text {
+    font-size: 13px;
+  }
+
+  .objective__footer .chip {
+    font-size: 11px;
+    padding: 5px 10px;
+  }
+
+  .powerbar__list {
+    flex-direction: column;
+    overflow: visible;
+    padding: 2px;
+  }
+
+  .power {
+    width: 100%;
+  }
+
+  .power__icon {
+    width: 38px;
+    height: 38px;
+  }
+
+  .power__desc {
+    max-width: none;
+  }
+
+  .tray {
+    padding: 9px;
+    gap: 10px;
+  }
+
+  .tray__card {
+    height: clamp(84px, 12vh, 112px);
+    padding: 8px;
+  }
+
+  .tray__badge {
+    font-size: 8px;
+  }
+
+  .board-hint {
+    font-size: 12px;
+    padding: 7px 14px;
+  }
+
+  .menu__play {
+    min-height: 66px;
+  }
+
+  .menu__actions {
+    max-width: 560px;
+  }
+
+  .reward {
+    padding-top: 20px;
+  }
+
+  .reward__cards {
+    gap: 16px;
+  }
+}
+
+/* ---------- Telas médias ---------- */
+@media (max-width: 899px) {
+  .hud__crystals {
+    display: none;
+  }
+
+  .relic-rail__name {
+    display: none;
+  }
+
+  .relic-rail__item {
+    padding: 3px;
+  }
+
+  .powerbar__head {
+    display: none;
+  }
+
+  .board-hint {
+    font-size: 10.5px;
+    padding: 5px 10px;
+  }
+}
+
+/* ---------- Mobile ---------- */
+@media (max-width: 640px) {
+  .run-screen {
+    padding: calc(4px + env(safe-area-inset-top)) 7px calc(6px + env(safe-area-inset-bottom));
+    gap: 6px;
+  }
+
+  .hud {
+    gap: 6px;
+    padding: 6px 8px;
+    border-radius: 14px;
+  }
+
+  .icon-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+  }
+
+  .hud__stage-label {
+    font-size: 9.5px;
+    letter-spacing: 0.12em;
+  }
+
+  .hud__stage-name {
+    font-size: 11px;
+    max-width: 30vw;
+  }
+
+  .hud__score-label {
+    font-size: 8px;
+  }
+
+  .hud__score-value {
+    font-size: clamp(20px, 6.6vw, 28px);
+  }
+
+  .hud__combo {
+    font-size: 11px;
+  }
+
+  .area-tray {
+    gap: 5px;
+  }
+
+  .tray {
+    gap: 5px;
+    padding: 5px;
+    border-radius: 15px;
+  }
+
+  .tray__card {
+    height: clamp(62px, 11vh, 84px);
+    padding: 4px;
+    border-radius: 11px;
+  }
+
+  .tray__num {
+    display: none;
+  }
+
+  .tray-hint {
+    font-size: 10.5px;
+    gap: 6px;
+    padding: 3px 7px;
+  }
+
+  .tray-hint .btn {
+    min-height: 30px;
+    padding: 3px 9px;
+    font-size: 10px;
+  }
+
+  .objective {
+    padding: 6px 8px;
+    gap: 7px;
+  }
+
+  .objective__icon {
+    width: 23px;
+    height: 23px;
+  }
+
+  .objective__kind {
+    font-size: 8px;
+  }
+
+  .objective__text {
+    font-size: 11px;
+  }
+
+  .objective__count {
+    font-size: 10px;
+  }
+
+  .objective__footer .chip {
+    font-size: 9px;
+    padding: 3px 7px;
+  }
+
+  .power {
+    flex-direction: column;
+    gap: 2px;
+    min-width: 54px;
+    padding: 5px 7px 4px;
+    border-radius: 11px;
+  }
+
+  .power__icon {
+    width: 30px;
+    height: 30px;
+  }
+
+  .power__meta {
+    display: flex;
+    align-items: center;
+  }
+
+  .power__desc {
+    display: none;
+  }
+
+  .power__name {
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+  }
+
+  .powerbar__list {
+    justify-content: center;
+  }
+
+  .relic-rail .rail-empty {
+    display: none;
+  }
+
+  .power__charges {
+    top: -4px;
+    right: -4px;
+    min-width: 17px;
+    height: 17px;
+    font-size: 9px;
+  }
+
+  .bossbar {
+    padding: 6px 9px;
+    gap: 8px;
+    border-radius: 13px;
+  }
+
+  .bossbar__portrait {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+  }
+
+  .bossbar__title strong {
+    font-size: 12.5px;
+  }
+
+  .bossbar__epithet {
+    display: none;
+  }
+
+  .bossbar__rule {
+    font-size: 9.5px;
+    line-height: 1.25;
+    margin-top: 3px;
+  }
+
+  .bossbar__track {
+    height: 7px;
+  }
+
+  .menu {
+    padding: calc(10px + env(safe-area-inset-top)) 14px calc(10px + env(safe-area-inset-bottom));
+    gap: 8px;
+  }
+
+  .menu__tagline {
+    font-size: 8.5px;
+    letter-spacing: 0.24em;
+  }
+
+  .menu__play {
+    min-height: 54px;
+  }
+
+  .menu__tile {
+    padding: 10px 4px;
+  }
+
+  .menu__tile span {
+    font-size: 9.5px;
+  }
+
+  .menu__foot {
+    font-size: 9.5px;
+    justify-content: center;
+  }
+
+  .menu__version {
+    display: none;
+  }
+
+  .reward {
+    padding: calc(8px + env(safe-area-inset-top)) 12px calc(10px + env(safe-area-inset-bottom));
+    gap: 10px;
+    justify-content: flex-start;
+  }
+
+  .reward__head h2 {
+    font-size: 22px;
+  }
+
+  .reward__head p {
+    font-size: 11.5px;
+  }
+
+  .reward__cards,
+  .reward__cards--4 {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    padding: 4px 2px 10px;
+    scrollbar-width: none;
+  }
+
+  .reward__cards::-webkit-scrollbar {
+    display: none;
+  }
+
+  .relic-card {
+    flex: 0 0 78%;
+    scroll-snap-align: center;
+    min-height: 296px;
+    padding: 16px 14px 12px;
+  }
+
+  .reward__foot {
+    align-items: center;
+  }
+
+  .reward__owned {
+    width: 100%;
+  }
+
+  .result {
+    gap: 8px;
+    padding: calc(10px + env(safe-area-inset-top)) 12px calc(12px + env(safe-area-inset-bottom));
+    justify-content: center;
+  }
+
+  @supports (justify-content: safe center) {
+    .result {
+      justify-content: safe center;
+    }
+  }
+
+  .result__grid {
+    gap: 5px;
+  }
+
+  .result__stat {
+    padding: 6px 4px;
+  }
+
+  .result__actions {
+    width: 100%;
+    padding-top: 6px;
+    margin-top: 4px;
+  }
+
+  .result__actions .btn {
+    flex: 1 1 42%;
+    font-size: 12px;
+    padding: 10px 12px;
+  }
+
+  .subscreen {
+    padding: calc(8px + env(safe-area-inset-top)) 10px calc(14px + env(safe-area-inset-bottom));
+  }
+
+  .collection__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .collection-card {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .collection-card__action {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+    margin-top: -2px;
+  }
+
+  .tabs {
+    gap: 4px;
+    padding: 4px;
+  }
+
+  .tab {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 8px 6px;
+    font-size: 11px;
+    gap: 4px;
+  }
+
+  .tab em {
+    font-size: 9px;
+    padding: 0 4px;
+  }
+
+  .achievement {
+    padding: 9px 10px;
+    gap: 8px;
+  }
+
+  .achievement__icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .achievement__reward {
+    font-size: 9.5px;
+    padding: 3px 7px;
+  }
+
+  .power-card,
+  .talent-card {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: 10px;
+  }
+
+  .power-card > .btn,
+  .talent-card > .btn {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+
+  .stat-grid {
+    grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  }
+
+  .modal {
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .pause__stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ---------- Telas muito estreitas ---------- */
+@media (max-width: 480px) {
+  .hud__stage-name {
+    display: none;
+  }
+
+  .hud__stage {
+    justify-content: center;
+  }
+
+  .tray-hint-slot {
+    height: 28px;
+    min-height: 28px;
+  }
+}
+
+@media (max-width: 380px) {
+
+  .result__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .result__stat span {
+    font-size: 9px;
+  }
+
+  .relic-card {
+    flex: 0 0 86%;
+  }
+
+  .menu__grid {
+    gap: 6px;
+  }
+
+  .menu__tile svg {
+    width: 19px;
+    height: 19px;
+  }
+}
+
+/* ---------- Celular na horizontal ---------- */
+@media (min-width: 640px) and (max-height: 560px) {
+  .run-screen {
+    padding: calc(3px + env(safe-area-inset-top)) 8px calc(3px + env(safe-area-inset-bottom));
+    gap: 5px;
+  }
+
+  .hud {
+    padding: 4px 10px;
+    border-radius: 12px;
+  }
+
+  .hud__score-value {
+    font-size: 22px;
+  }
+
+  .hud__score-label {
+    font-size: 8px;
+  }
+
+  .hud__stage-name {
+    display: none;
+  }
+
+  .run__body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 252px;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'board relics'
+      'board objectives'
+      'board powers'
+      'board tray';
+    gap: 5px 8px;
+    align-items: stretch;
+  }
+
+  .area-relics {
+    grid-area: relics;
+    min-height: 0;
+  }
+
+  .area-objectives {
+    grid-area: objectives;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  .area-board {
+    grid-area: board;
+    min-height: 0;
+  }
+
+  .area-powers {
+    grid-area: powers;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+
+  .area-tray {
+    grid-area: tray;
+  }
+
+  .relic-rail__list {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .relic-rail__name,
+  .relic-rail__head {
+    display: none;
+  }
+
+  .objective {
+    padding: 5px 7px;
+  }
+
+  .objective__kind {
+    display: none;
+  }
+
+  .objective__text {
+    font-size: 10.5px;
+    margin-bottom: 3px;
+  }
+
+  .objective__footer .chip {
+    font-size: 9px;
+    padding: 2px 6px;
+  }
+
+  .objective__icon {
+    width: 22px;
+    height: 22px;
+  }
+
+  .powerbar__head {
+    display: none;
+  }
+
+  .powerbar__list {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 5px;
+    overflow: visible;
+  }
+
+  .power {
+    flex-direction: column;
+    gap: 1px;
+    width: auto;
+    min-width: 46px;
+    padding: 4px 6px;
+  }
+
+  .power__icon {
+    width: 26px;
+    height: 26px;
+  }
+
+  .power__meta {
+    display: none;
+  }
+
+  .tray-hint-slot {
+    height: 24px;
+    min-height: 24px;
+  }
+
+  .tray {
+    padding: 4px;
+    gap: 4px;
+  }
+
+  .tray__card {
+    height: 62px;
+    padding: 3px;
+  }
+
+  .tray__num,
+  .tray__badge {
+    display: none;
+  }
+
+  .bossbar__rule,
+  .bossbar__epithet {
+    display: none;
+  }
+
+  .bossbar {
+    padding: 5px 9px;
+  }
+
+  .board-hint {
+    font-size: 10px;
+    padding: 4px 8px;
+  }
+}
+
+/* ---------- Ajustes finos para pouca altura ---------- */
+@media (max-height: 700px) and (max-width: 899px) {
+  .area-relics .relic-rail__head {
+    display: none;
+  }
+
+  .objective__footer .chip {
+    padding: 2px 6px;
+  }
+
+  .board-hint {
+    top: 4px;
+  }
+}
+
+@media (max-height: 600px) and (max-width: 899px) {
+  .objective {
+    padding: 4px 7px;
+  }
+
+  .objective__kind {
+    display: none;
+  }
+
+  .objective__text {
+    margin-bottom: 3px;
+  }
+
+  .tray__card {
+    height: 58px;
+  }
+
+  .tray__num,
+  .tray__badge {
+    display: none;
+  }
+
+  .relic-rail__head {
+    display: none;
+  }
+
+  .bossbar__rule,
+  .bossbar__epithet {
+    display: none;
+  }
+}
+
+/* ---------- Hover apenas com mouse ---------- */
+@media (hover: none) {
+  .btn:hover:not(:disabled),
+  .menu__tile:hover,
+  .power:hover:not(:disabled),
+  .tray__card:hover:not(:disabled) {
+    transform: none;
+  }
+}
