@@ -12,6 +12,7 @@ import { AchievementsScreen } from './screens/AchievementsScreen';
 import { StatsScreen } from './screens/StatsScreen';
 import { SettingsModal } from './screens/SettingsModal';
 import { PauseOverlay } from './screens/PauseOverlay';
+import { useAudioScene } from './audio/useAudioScene';
 import { sfx } from './audio/sfx';
 
 function useSystemReducedMotion(): boolean {
@@ -34,61 +35,80 @@ export default function App() {
   const systemReduced = useSystemReducedMotion();
   const reduced = api.meta.settings.reducedMotion || systemReduced;
 
+  useAudioScene(api);
+
   useEffect(() => {
-    const unlock = () => sfx.unlock();
-    window.addEventListener('pointerdown', unlock, { once: true });
-    window.addEventListener('keydown', unlock, { once: true });
+    const shouldPlay = (target: EventTarget | null): boolean => {
+      if (!(target instanceof Element)) return false;
+      const button = target.closest('button, [role="button"]');
+      if (!button) return false;
+      if (button.hasAttribute('disabled') || button.getAttribute('aria-disabled') === 'true') return false;
+      if (button.closest('[data-sfx="none"]')) return false;
+      return true;
+    };
+
+    const onPointer = (event: PointerEvent) => {
+      if (event.button !== 0) return;
+      if (shouldPlay(event.target)) sfx.play('click');
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      if (shouldPlay(document.activeElement)) sfx.play('click');
+    };
+
+    document.addEventListener('pointerdown', onPointer, { passive: true });
+    document.addEventListener('keydown', onKey);
     return () => {
-      window.removeEventListener('pointerdown', unlock);
-      window.removeEventListener('keydown', unlock);
+      document.removeEventListener('pointerdown', onPointer);
+      document.removeEventListener('keydown', onKey);
     };
   }, []);
 
   const screen = (() => {
     if (api.view === 'run' && api.run) {
       return (
-        <ScreenTransition key="run">
+        <ScreenTransition key="run" variant="run">
           <RunScreen api={api} reducedMotion={reduced} />
         </ScreenTransition>
       );
     }
     if (api.view === 'reward' && api.run) {
       return (
-        <ScreenTransition key="reward">
+        <ScreenTransition key="reward" variant="reward">
           <RewardScreen api={api} />
         </ScreenTransition>
       );
     }
     if (api.view === 'result' && api.summary) {
       return (
-        <ScreenTransition key="result">
+        <ScreenTransition key="result" variant="result">
           <ResultScreen api={api} />
         </ScreenTransition>
       );
     }
     if (api.view === 'collection') {
       return (
-        <ScreenTransition key="collection">
+        <ScreenTransition key="collection" variant="secondary">
           <CollectionScreen api={api} />
         </ScreenTransition>
       );
     }
     if (api.view === 'achievements') {
       return (
-        <ScreenTransition key="achievements">
+        <ScreenTransition key="achievements" variant="secondary">
           <AchievementsScreen api={api} />
         </ScreenTransition>
       );
     }
     if (api.view === 'stats') {
       return (
-        <ScreenTransition key="stats">
+        <ScreenTransition key="stats" variant="secondary">
           <StatsScreen api={api} />
         </ScreenTransition>
       );
     }
     return (
-      <ScreenTransition key="menu">
+      <ScreenTransition key="menu" variant="menu">
         <MainMenu api={api} />
       </ScreenTransition>
     );

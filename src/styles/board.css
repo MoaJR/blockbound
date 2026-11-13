@@ -14,18 +14,14 @@
 }
 
 .board {
+  /* A moldura visual vive em `.board__skin`, por fora da matriz: assim o
+     container das peças não precisa (e não deve) recortar nada. */
+  --board-skin: 6px;
+  --board-radius: 22px;
   position: relative;
   width: 100%;
   height: 100%;
-  border-radius: 24px;
-  background:
-    linear-gradient(180deg, rgba(24, 54, 112, 0.9), rgba(9, 24, 56, 0.96) 55%),
-    #081635;
-  box-shadow:
-    0 34px 70px rgba(0, 4, 16, 0.6),
-    0 0 0 1px rgba(96, 156, 255, 0.22),
-    inset 0 2px 0 rgba(150, 200, 255, 0.22),
-    inset 0 -8px 24px rgba(0, 0, 0, 0.5);
+  border-radius: var(--board-radius);
   touch-action: none;
   -webkit-touch-callout: none;
   user-select: none;
@@ -42,6 +38,22 @@
   z-index: 0;
 }
 
+.board__skin {
+  position: absolute;
+  inset: calc(var(--board-skin) * -1);
+  border-radius: var(--board-radius);
+  pointer-events: none;
+  z-index: 0;
+  background:
+    linear-gradient(180deg, rgba(24, 54, 112, 0.9), rgba(9, 24, 56, 0.96) 55%),
+    #081635;
+  box-shadow:
+    0 34px 70px rgba(0, 4, 16, 0.6),
+    0 0 0 1px rgba(96, 156, 255, 0.22),
+    inset 0 2px 0 rgba(150, 200, 255, 0.22),
+    inset 0 -8px 24px rgba(0, 0, 0, 0.5);
+}
+
 .board__grid {
   position: relative;
   z-index: 1;
@@ -50,8 +62,6 @@
   grid-template-rows: repeat(9, 1fr);
   width: 100%;
   height: 100%;
-  border-radius: 18px;
-  overflow: hidden;
 }
 
 .cell {
@@ -506,7 +516,7 @@
   cursor: crosshair;
 }
 
-.board--boss-ice {
+.board--boss-ice .board__skin {
   box-shadow:
     0 34px 70px rgba(0, 4, 16, 0.6),
     0 0 0 2px rgba(120, 220, 255, 0.4),
@@ -514,7 +524,7 @@
     inset 0 2px 0 rgba(150, 200, 255, 0.25);
 }
 
-.board--boss-corrupt {
+.board--boss-corrupt .board__skin {
   box-shadow:
     0 34px 70px rgba(0, 4, 16, 0.6),
     0 0 0 2px rgba(180, 110, 255, 0.4),
@@ -522,7 +532,7 @@
     inset 0 2px 0 rgba(200, 150, 255, 0.2);
 }
 
-.board--boss-gravity {
+.board--boss-gravity .board__skin {
   box-shadow:
     0 34px 70px rgba(0, 4, 16, 0.6),
     0 0 0 2px rgba(140, 160, 255, 0.4),
@@ -530,7 +540,7 @@
     inset 0 2px 0 rgba(160, 180, 255, 0.22);
 }
 
-.board--boss-boom {
+.board--boss-boom .board__skin {
   box-shadow:
     0 34px 70px rgba(0, 4, 16, 0.6),
     0 0 0 2px rgba(255, 150, 90, 0.42),
@@ -548,6 +558,40 @@
   will-change: transform;
   contain: layout style;
   filter: drop-shadow(0 18px 26px rgba(0, 0, 0, 0.55));
+  /* Só o filtro transiciona: o transform é escrito por rAF e precisa ser 1:1. */
+  transition: filter 0.12s ease;
+}
+
+/* Pick-up curto na montagem (a peça não "teleporta" para a mão). */
+.drag-ghost .piece-shape {
+  animation: ghost-lift 0.14s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  /* Sem gutter: o ghost ocupa exatamente as células do tabuleiro... */
+  gap: 0;
+}
+
+/* ...e os blocos usam a MESMA métrica das células (inset 2px, raio 8px),
+   então a peça "cai" sem nenhum deslocamento visual em relação ao preview. */
+.drag-ghost .piece-shape .block {
+  width: calc(100% - 4px);
+  height: calc(100% - 4px);
+  justify-self: center;
+  align-self: center;
+  border-radius: 8px;
+}
+
+@keyframes ghost-lift {
+  from {
+    opacity: 0;
+    transform: scale(0.84) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.reduce-motion .drag-ghost .piece-shape {
+  animation: none;
 }
 
 /* Durante o arraste não há transição: a peça acompanha o ponteiro sem snap. */

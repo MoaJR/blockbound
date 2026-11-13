@@ -59,6 +59,7 @@ export function PowerBar({
                 level > 1 ? 'is-evolved' : ''
               }`}
               disabled={disabled || noCharges}
+              data-sfx="none"
               onClick={() => onUse(power.id)}
               title={`${levelLabel.name} (nível ${level}) — ${levelLabel.desc}`}
               aria-label={`${levelLabel.name}, nível ${level}, ${power.charges} cargas`}
@@ -82,6 +83,7 @@ export function PowerBar({
             type="button"
             className="power power--recall"
             disabled={disabled || recallUsed}
+            data-sfx="none"
             onClick={onRecall}
             title="Luva Magnética — devolver a última peça colocada"
             aria-label="Devolver última peça"

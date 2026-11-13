@@ -1,17 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { AnimatePresence, m as motion } from 'framer-motion';
-import type { Coord, GameEvent, PowerId } from '../engine/types';
+import type { Board as BoardModel, BossState, Coord, GameEvent, PowerId, SynergyTag } from '../engine/types';
 import { shapeBounds, trayHasPlacement } from '../engine/pieces';
 import { getMods, isStuck, usablePowers } from '../engine/run';
 import { previewPlacement } from '../engine/preview';
 import type { PreviewInfo } from '../engine/preview';
 import { anchorFromCell, resolveDrop } from '../engine/placement';
-import { stageTitle } from '../engine/stages';
+import {
+  cellProjection,
+  dragGrabOffsets,
+  ghostBox,
+  ghostOrigin,
+  rectsOverlap,
+} from '../interaction/drag';
+import { MODIFIER_MAP, stageTitle } from '../engine/stages';
 import { POWER_MAP } from '../engine/powers';
 import type { GameApi } from '../hooks/useGame';
 import { Board } from '../components/Board';
-import type { BoardFlash, BoardPopup } from '../components/Board';
+import type { BoardFlash, BoardPlacement, BoardPopup, BoardPowerFx } from '../components/Board';
 import { PieceTray } from '../components/PieceTray';
 import { DragGhost } from '../components/DragGhost';
 import { ObjectivePanel } from '../components/ObjectivePanel';
@@ -21,13 +28,27 @@ import { PowerBar } from '../components/PowerBar';
 import { EnergyBar } from '../components/EnergyBar';
 import { ProgressionPanel } from '../components/ProgressionPanel';
 import { AnimatedNumber } from '../components/AnimatedNumber';
+import { BossIntro, ComboBanner, StageBanner } from '../components/GameEffects';
 import { Icon } from '../ui/icons';
 import type { IconName } from '../ui/icons';
 import { ParticleField } from '../fx/particles';
 import { subscribeFx } from '../fx/fxBus';
+import {
+  clearParticleCount,
+  clearTier,
+  centroid,
+  POWER_COLOR,
+  rowsAndCols,
+  shakeMagnitude,
+} from '../fx/director';
+import { dprCap, maxParticles, particleScale, reportFrame } from '../fx/quality';
+import { useQualityLevel } from '../fx/useQuality';
 import { sfx } from '../audio/sfx';
 
 const CELL_COLORS = ['#25c8ec', '#8a5bff', '#ffc857', '#4ade80', '#ff5f9e', '#4a90ff'];
+
+/** Moldura decorativa por fora da matriz (espelha `--board-skin` em board.css). */
+const BOARD_SKIN = 6;
 
 const EVENT_ICON: Record<string, IconName> = {
   chest: 'chest',
@@ -41,6 +62,8 @@ interface DragVisual {
   index: number;
   originX: number;
   originY: number;
+  /** Célula real do tabuleiro no início do arraste (ghost com blocos idênticos). */
+  cell: number;
   over: boolean;
   invalid: boolean;
 }
@@ -53,8 +76,6 @@ interface DragSession {
   lift: number;
   startX: number;
   startY: number;
-  lastX: number;
-  lastY: number;
   moved: boolean;
   inside: boolean;
   over: boolean;
@@ -64,6 +85,7 @@ type ActivePanel = 'energy' | 'event' | null;
 
 let popupSeq = 0;
 let flashSeq = 0;
+let effectSeq = 0;
 
 export interface RunScreenProps {
   api: GameApi;
@@ -98,8 +120,17 @@ export function RunScreen({ api, reducedMotion }: RunScreenProps) {
   const [boardSize, setBoardSize] = useState(320);
   const [flashes, setFlashes] = useState<BoardFlash[]>([]);
   const [popups, setPopups] = useState<BoardPopup[]>([]);
+  const [placements, setPlacements] = useState<BoardPlacement[]>([]);
+  const [powerFx, setPowerFx] = useState<BoardPowerFx[]>([]);
+  const [comboFx, setComboFx] = useState<{ id: number; level: number; multiplier: number } | null>(null);
+  const [relicPulse, setRelicPulse] = useState<{ key: number; tags: SynergyTag[] } | null>(null);
+  const [stageBanner, setStageBanner] = useState<{ id: number; number: number; title: string } | null>(null);
+  const [bossIntro, setBossIntro] = useState<{ id: number; boss: BossState } | null>(null);
+  const [bossHitTick, setBossHitTick] = useState(0);
+  const [shuffleTick, setShuffleTick] = useState(0);
   const [denyTick, setDenyTick] = useState(0);
   const [panel, setPanel] = useState<ActivePanel>(null);
+  const quality = useQualityLevel();
 
   const boardRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -111,6 +142,10 @@ export function RunScreen({ api, reducedMotion }: RunScreenProps) {
   const dragRaf = useRef(0);
   const dragAnchorRef = useRef<Coord | null>(null);
   const timersRef = useRef<number[]>([]);
+  const boardSnapshot = useRef<BoardModel | null>(null);
+  const lastPlaceColor = useRef(0);
+  const stageKeyRef = useRef(-1);
+  const bossKeyRef = useRef<string | null>(null);
 
   const boardWidth = boardSize >= 180 ? boardSize : 320;
   const cellSize = boardWidth / 9;
@@ -135,7 +170,12 @@ export function RunScreen({ api, reducedMotion }: RunScreenProps) {
     if (!slot) return;
     const measure = () => {
       const rect = slot.getBoundingClientRect();
-      const size = Math.max(200, Math.min(rect.width, rect.height, 640));
+      // A moldura (`--board-skin`) cresce para fora: reservar o espaço dela aqui
+      // garante que o conjunto nunca encoste nas bordas da tela.
+      const size = Math.max(
+        200,
+        Math.min(rect.width - BOARD_SKIN * 2, rect.height - BOARD_SKIN * 2, 640),
+      );
       setBoardSize(Math.floor(size));
     };
     measure();
@@ -160,88 +200,294 @@ export function RunScreen({ api, reducedMotion }: RunScreenProps) {
   }, []);
 
   useEffect(() => {
+    boardSnapshot.current = run?.board ?? null;
+  }, [run?.board]);
+
+  useEffect(() => {
     const field = fieldRef.current;
     if (!field) return;
     field.setReduced(reducedMotion);
-    field.setSize(boardWidth, boardWidth, Math.min(2, window.devicePixelRatio || 1));
-  }, [boardWidth, reducedMotion]);
+    field.setQuality(particleScale(), maxParticles());
+    field.setSize(boardWidth, boardWidth, Math.min(dprCap(), window.devicePixelRatio || 1));
+  }, [boardWidth, reducedMotion, quality]);
 
-  const addPopup = useCallback((r: number, c: number, text: string, tone: BoardPopup['tone']) => {
-    popupSeq += 1;
-    const id = popupSeq;
-    setPopups((prev) => [...prev.slice(-5), { id, r, c, text, tone }]);
-    const timer = window.setTimeout(() => {
-      setPopups((prev) => prev.filter((popup) => popup.id !== id));
-    }, 850);
-    timersRef.current.push(timer);
+  useEffect(() => {
+    let raf = 0;
+    let last = performance.now();
+    const loop = (now: number) => {
+      const dt = now - last;
+      last = now;
+      if (!document.hidden) reportFrame(dt);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
   }, []);
 
-  const addFlash = useCallback((rows: number[], cols: number[]) => {
-    flashSeq += 1;
-    const id = flashSeq;
-    setFlashes((prev) => [...prev, { id, rows, cols }]);
-    const timer = window.setTimeout(() => {
-      setFlashes((prev) => prev.filter((flash) => flash.id !== id));
-    }, 420);
+  const schedule = useCallback((callback: () => void, delay: number) => {
+    let timer = 0;
+    timer = window.setTimeout(() => {
+      const index = timersRef.current.indexOf(timer);
+      if (index >= 0) timersRef.current.splice(index, 1);
+      callback();
+    }, delay);
     timersRef.current.push(timer);
+    return timer;
   }, []);
+
+  const addPopup = useCallback(
+    (r: number, c: number, text: string, tone: BoardPopup['tone']) => {
+      popupSeq += 1;
+      const id = popupSeq;
+      setPopups((prev) => [...prev.slice(-5), { id, r, c, text, tone }]);
+      schedule(() => setPopups((prev) => prev.filter((popup) => popup.id !== id)), 900);
+    },
+    [schedule],
+  );
+
+  const addFlash = useCallback(
+    (
+      rows: number[],
+      cols: number[],
+      cells: Coord[],
+      lines: number,
+      cross: boolean,
+      tone: BoardFlash['tone'],
+    ) => {
+      flashSeq += 1;
+      const id = flashSeq;
+      setFlashes((prev) => [...prev.slice(-3), { id, rows, cols, cells, lines, cross, tone }]);
+      schedule(() => setFlashes((prev) => prev.filter((flash) => flash.id !== id)), 620);
+    },
+    [schedule],
+  );
+
+  const addPlacements = useCallback(
+    (cells: Coord[], color: number) => {
+      effectSeq += 1;
+      const id = effectSeq;
+      const entries = cells.map((cell, index) => ({
+        id,
+        r: cell.r,
+        c: cell.c,
+        color,
+        delay: Math.min(150, index * 16),
+      }));
+      setPlacements((prev) => [...prev.slice(-36), ...entries]);
+      schedule(() => setPlacements((prev) => prev.filter((entry) => entry.id !== id)), 420);
+    },
+    [schedule],
+  );
+
+  const addPowerFx = useCallback(
+    (power: PowerId, cells: Coord[]) => {
+      effectSeq += 1;
+      const id = effectSeq;
+      const center = centroid(cells);
+      const { rows, cols } = rowsAndCols(cells);
+      setPowerFx((prev) => [
+        ...prev.slice(-2),
+        {
+          id,
+          power,
+          r: Math.round(center.r),
+          c: Math.round(center.c),
+          cells,
+          rows,
+          cols,
+        },
+      ]);
+      schedule(() => setPowerFx((prev) => prev.filter((entry) => entry.id !== id)), 620);
+    },
+    [schedule],
+  );
+
+  const addComboFx = useCallback(
+    (level: number, multiplier: number) => {
+      effectSeq += 1;
+      const id = effectSeq;
+      setComboFx({ id, level, multiplier });
+      schedule(() => setComboFx((current) => (current?.id === id ? null : current)), 1050);
+    },
+    [schedule],
+  );
+
+  const pulseRelics = useCallback(
+    (tags: SynergyTag[]) => {
+      effectSeq += 1;
+      const key = effectSeq;
+      setRelicPulse({ key, tags });
+      schedule(() => setRelicPulse((current) => (current?.key === key ? null : current)), 720);
+    },
+    [schedule],
+  );
+
+  const shakeBoard = useCallback(
+    (tier: number) => {
+      if (reducedMotion) return;
+      const element = boardRef.current;
+      if (!element) return;
+      const magnitude = shakeMagnitude(tier as 1 | 2 | 3 | 4) * (quality === 'low' ? 0.65 : 1);
+      element.animate(
+        [
+          { transform: 'translate3d(0,0,0)' },
+          { transform: `translate3d(${-magnitude}px, ${magnitude * 0.45}px, 0)` },
+          { transform: `translate3d(${magnitude * 0.7}px, ${-magnitude * 0.4}px, 0)` },
+          { transform: 'translate3d(0,0,0)' },
+        ],
+        { duration: 150 + tier * 40, easing: 'cubic-bezier(0.22, 0.61, 0.36, 1)' },
+      );
+    },
+    [quality, reducedMotion],
+  );
 
   useEffect(() => {
     return subscribeFx((events: GameEvent[]) => {
       const field = fieldRef.current;
       if (!field) return;
+
+      const colorFor = (cell: Coord): string => {
+        const snapshot = boardSnapshot.current?.cells[cell.r]?.[cell.c];
+        if (snapshot?.kind === 'block') return CELL_COLORS[snapshot.color] ?? '#9be8ff';
+        if (snapshot?.kind === 'frozen') return '#9fe8ff';
+        if (snapshot?.kind === 'corrupt') return '#b06bff';
+        if (snapshot?.kind === 'bomb') return '#ff8a3d';
+        return CELL_COLORS[lastPlaceColor.current] ?? '#9be8ff';
+      };
+
       for (const event of events) {
+        if (event.type === 'place') {
+          lastPlaceColor.current = event.color;
+          addPlacements(event.cells, event.color);
+          const color = CELL_COLORS[event.color] ?? '#9be8ff';
+          for (const cell of event.cells) {
+            field.burst({
+              x: (cell.c + 0.5) * cellSize,
+              y: (cell.r + 0.5) * cellSize,
+              color,
+              count: 2,
+              power: 0.55,
+              speed: 1.6,
+              size: 3,
+              life: 22,
+            });
+          }
+        }
+
         if (event.type === 'clear') {
-          addFlash(event.rows, event.cols);
-          const step = event.cells.length > 40 ? 2 : 1;
-          for (let i = 0; i < event.cells.length; i += step) {
-            const cell = event.cells[i];
+          const cross = event.rows.length > 0 && event.cols.length > 0;
+          const tier = clearTier(event.lines, cross);
+          addFlash(
+            event.rows,
+            event.cols,
+            event.cells,
+            event.lines,
+            cross,
+            cross || event.lines >= 2 ? 'gold' : 'cyan',
+          );
+          shakeBoard(tier);
+
+          const step = event.cells.length > 44 ? 2 : 1;
+          const count = clearParticleCount(tier);
+          for (let index = 0; index < event.cells.length; index += step) {
+            const cell = event.cells[index];
             if (!cell) continue;
             field.burst({
               x: (cell.c + 0.5) * cellSize,
               y: (cell.r + 0.5) * cellSize,
-              color: CELL_COLORS[(cell.r + cell.c) % CELL_COLORS.length] ?? '#9be8ff',
-              count: 3,
-              power: 0.9,
-              size: 4,
+              color: colorFor(cell),
+              count,
+              power: tier >= 3 ? 1.8 : 1.1,
+              size: tier >= 3 ? 5 : 4,
+              shape: tier >= 3 ? 'shard' : 'block',
+              life: 34 + tier * 8,
             });
           }
-          const anchor = event.cells[Math.floor(event.cells.length / 2)];
-          if (anchor) addPopup(anchor.r, anchor.c, `+${event.points}`, event.lines >= 2 ? 'gold' : 'cyan');
+
           if (event.lines >= 2) {
-            field.burst({
+            field.ring({
               x: boardWidth / 2,
               y: boardWidth / 2,
-              color: '#ffc857',
-              count: 24,
-              power: 1.8,
-              shape: 'spark',
+              color: tier >= 3 ? '#ffd76a' : '#7ff0ff',
+              radius: boardWidth * (tier >= 3 ? 0.62 : 0.4),
+              width: tier >= 3 ? 4 : 2.5,
+              life: 26,
             });
           }
-        }
-        if (event.type === 'place') {
-          for (const cell of event.cells) {
-            field.burst({
-              x: (cell.c + 0.5) * cellSize,
-              y: (cell.r + 0.5) * cellSize,
-              color: CELL_COLORS[event.color] ?? '#9be8ff',
-              count: 2,
-              power: 0.5,
-              size: 3,
-            });
-          }
-        }
-        if (event.type === 'power' && event.cells.length > 0) {
-          for (const cell of event.cells) {
-            field.burst({
-              x: (cell.c + 0.5) * cellSize,
-              y: (cell.r + 0.5) * cellSize,
-              color: '#c9a6ff',
-              count: 4,
+          if (tier >= 3) {
+            field.confetti({
+              x: boardWidth / 2,
+              y: boardWidth * 0.5,
+              count: tier >= 4 ? 26 : 16,
+              colors: ['#7ff0ff', '#ffd76a', '#d6bcff', '#ff8fb8', '#8dffb8'],
               power: 1.1,
             });
           }
+
+          const anchor = event.cells[Math.floor(event.cells.length / 2)];
+          if (anchor) addPopup(anchor.r, anchor.c, `+${event.points}`, event.lines >= 2 ? 'gold' : 'cyan');
+          pulseRelics(['lines', 'combo', 'prism']);
         }
+
+        if (event.type === 'combo' && event.level >= 2) {
+          addComboFx(event.level, event.multiplier);
+          pulseRelics(['combo']);
+          if (event.level >= 3) {
+            field.confetti({
+              x: boardWidth / 2,
+              y: boardWidth * 0.45,
+              count: event.level >= 10 ? 36 : event.level >= 5 ? 26 : 16,
+              colors: ['#7ff0ff', '#ffd76a', '#d6bcff', '#ff8fb8'],
+              power: event.level >= 10 ? 1.5 : 1.1,
+            });
+          }
+          if (event.level >= 5) {
+            field.ring({
+              x: boardWidth / 2,
+              y: boardWidth / 2,
+              color: event.level >= 10 ? '#ffe08a' : '#c9a6ff',
+              radius: boardWidth * (event.level >= 10 ? 0.72 : 0.58),
+              width: 4,
+              life: 32,
+            });
+          }
+        }
+
+        if (event.type === 'power') {
+          if (event.power === 'shuffle') setShuffleTick((tick) => tick + 1);
+          const color = POWER_COLOR[event.power] ?? '#c9a6ff';
+          if (event.cells.length > 0) {
+            addPowerFx(event.power, event.cells);
+            const step = event.cells.length > 30 ? 2 : 1;
+            for (let index = 0; index < event.cells.length; index += step) {
+              const cell = event.cells[index];
+              if (!cell) continue;
+              field.burst({
+                x: (cell.c + 0.5) * cellSize,
+                y: (cell.r + 0.5) * cellSize,
+                color: index % 3 === 0 ? '#ffffff' : color,
+                count: event.power === 'bomb' ? 6 : 4,
+                power: event.power === 'bomb' ? 2 : 1.2,
+                shape: event.power === 'bomb' || event.power === 'hammer' ? 'shard' : 'spark',
+                size: event.power === 'bomb' ? 6 : 4,
+              });
+            }
+            const center = centroid(event.cells);
+            field.ring({
+              x: (center.c + 0.5) * cellSize,
+              y: (center.r + 0.5) * cellSize,
+              color,
+              radius: cellSize * (event.power === 'bomb' ? 4.2 : 2.6),
+              width: 3,
+              life: 30,
+            });
+            if (event.power === 'bomb' || event.power === 'hammer' || event.power === 'drill') {
+              shakeBoard(2);
+            }
+          }
+          pulseRelics(['power']);
+        }
+
         if (event.type === 'spawn' && event.cells.length > 0) {
           const color =
             event.kind === 'frozen' ? '#9fe8ff' : event.kind === 'corrupt' ? '#b06bff' : '#ff8a3d';
@@ -252,22 +498,79 @@ export function RunScreen({ api, reducedMotion }: RunScreenProps) {
               color,
               count: 6,
               power: 1,
+              shape: 'glow',
             });
           }
         }
+
+        if (event.type === 'shift' && event.cells.length > 0) {
+          const center = centroid(event.cells);
+          field.burst({
+            x: (center.c + 0.5) * cellSize,
+            y: (center.r + 0.5) * cellSize,
+            color: '#a9d4ff',
+            count: 10,
+            power: 0.8,
+            gravity: 0.38,
+            speed: 1.2,
+            shape: 'spark',
+          });
+        }
+
+        if (event.type === 'thaw' && event.cells.length > 0) {
+          for (const cell of event.cells) {
+            field.burst({
+              x: (cell.c + 0.5) * cellSize,
+              y: (cell.r + 0.5) * cellSize,
+              color: '#c9f6ff',
+              count: 4,
+              power: 0.9,
+              shape: 'spark',
+            });
+          }
+        }
+
         if (event.type === 'rescue') {
           field.burst({
             x: boardWidth / 2,
             y: boardWidth / 2,
             color: '#ffd98a',
-            count: 26,
-            power: 2,
+            count: 30,
+            power: 2.2,
+            shape: 'spark',
+          });
+          field.ring({
+            x: boardWidth / 2,
+            y: boardWidth / 2,
+            color: '#ffd98a',
+            radius: boardWidth * 0.62,
+            width: 3,
+            life: 30,
+          });
+        }
+
+        if (event.type === 'boss' && event.damage > 0) {
+          setBossHitTick((tick) => tick + 1);
+          addPopup(1, 4, `-${event.damage}`, 'violet');
+          field.burst({
+            x: boardWidth / 2,
+            y: cellSize * 1.4,
+            color: '#c9a6ff',
+            count: 12,
+            power: 1.4,
             shape: 'spark',
           });
         }
-        if (event.type === 'boss' && event.damage > 0) {
-          addPopup(1, 4, `-${event.damage}`, 'violet');
+
+        if (event.type === 'relic') {
+          pulseRelics(['combo', 'lines', 'prism', 'power', 'economy', 'precision']);
         }
+
+        if (event.type === 'rewardClaimed') {
+          if (event.power || event.level) pulseRelics(['power']);
+          else pulseRelics(['economy', 'precision']);
+        }
+
         if (event.type === 'score' && event.amount > 0) {
           if (event.at) {
             const linePoints = event.breakdown?.line ?? 0;
@@ -278,7 +581,17 @@ export function RunScreen({ api, reducedMotion }: RunScreenProps) {
         }
       }
     });
-  }, [addFlash, addPopup, boardWidth, cellSize]);
+  }, [
+    addComboFx,
+    addFlash,
+    addPlacements,
+    addPopup,
+    addPowerFx,
+    boardWidth,
+    cellSize,
+    pulseRelics,
+    shakeBoard,
+  ]);
 
   const blocked = useMemo(() => {
     if (!run || run.status !== 'playing') return false;
@@ -302,6 +615,38 @@ export function RunScreen({ api, reducedMotion }: RunScreenProps) {
     }
     return null;
   }, [drag, dragAnchor, hover, pending, run, selected, targeting]);
+
+  useEffect(() => {
+    if (!run) return;
+    const key = run.stage.index;
+    if (stageKeyRef.current === key) return;
+    stageKeyRef.current = key;
+    effectSeq += 1;
+    const id = effectSeq;
+    setStageBanner({ id, number: run.stage.number, title: stageTitle(run.stage.index) });
+    schedule(
+      () => setStageBanner((current) => (current?.id === id ? null : current)),
+      reducedMotion ? 850 : 1550,
+    );
+  }, [run, reducedMotion, schedule]);
+
+  useEffect(() => {
+    const boss = run?.stage.boss;
+    if (!boss) {
+      bossKeyRef.current = null;
+      return;
+    }
+    if (bossKeyRef.current === boss.id) return;
+    bossKeyRef.current = boss.id;
+    effectSeq += 1;
+    const id = effectSeq;
+    setBossIntro({ id, boss });
+    sfx.play('bossIntro');
+    schedule(
+      () => setBossIntro((current) => (current?.id === id ? null : current)),
+      reducedMotion ? 900 : 1900,
+    );
+  }, [run?.stage.boss, reducedMotion, schedule]);
 
   const deny = () => {
     sfx.play('deny');
@@ -345,6 +690,7 @@ export function RunScreen({ api, reducedMotion }: RunScreenProps) {
     if (!piece || targeting) return;
     event.preventDefault();
     sfx.unlock();
+    sfx.play('pick');
 
     const card = event.currentTarget;
     const shapeEl = card.querySelector('.piece-shape') as HTMLElement | null;
@@ -358,23 +704,29 @@ export function RunScreen({ api, reducedMotion }: RunScreenProps) {
     const cell = boardRect && boardRect.width > 0 ? boardRect.width / 9 : cellSize;
     const { h, w } = shapeBounds(piece.cells);
 
-    // Offset de pega estável: a peça mantém a mesma distância do dedo/cursor.
-    const grabX = fx * w * cell;
-    const grabY = fy * h * cell;
-    const lift = event.pointerType === 'touch' ? cell * 1.1 : 0;
-    const originX = event.clientX - grabX;
-    const originY = event.clientY - grabY - lift;
+    // Pega estável: no mouse mantém o ponto exato; no toque a base da peça fica
+    // `lift` px acima do dedo (o dedo nunca esconde a peça nem as células).
+    const offsets = dragGrabOffsets({
+      pointerType: event.pointerType,
+      fx,
+      fy,
+      width: w,
+      height: h,
+      cell,
+      viewportHeight: window.innerHeight,
+    });
+    const origin = ghostOrigin(event.clientX, event.clientY, offsets);
+    const originX = origin.x;
+    const originY = origin.y;
 
     dragSession.current = {
       index,
       pointerId: event.pointerId,
-      grabX,
-      grabY,
-      lift,
+      grabX: offsets.grabX,
+      grabY: offsets.grabY,
+      lift: offsets.lift,
       startX: event.clientX,
       startY: event.clientY,
-      lastX: event.clientX,
-      lastY: event.clientY,
       moved: false,
       inside: false,
       over: false,
@@ -390,7 +742,7 @@ export function RunScreen({ api, reducedMotion }: RunScreenProps) {
     setPending(null);
     setHover(null);
     setDragAnchor(null);
-    setDrag({ index, originX, originY, over: false, invalid: false });
+    setDrag({ index, originX, originY, cell, over: false, invalid: false });
   };
 
   const movePiecePointer = (index: number, event: ReactPointerEvent<HTMLElement>) => {
@@ -400,9 +752,10 @@ export function RunScreen({ api, reducedMotion }: RunScreenProps) {
 
     const dx = event.clientX - session.startX;
     const dy = event.clientY - session.startY;
-    if (!session.moved && Math.hypot(dx, dy) > 6) session.moved = true;
-    session.lastX = event.clientX;
-    session.lastY = event.clientY;
+    if (!session.moved && Math.hypot(dx, dy) > 6) {
+      session.moved = true;
+      sfx.play('dragStart');
+    }
 
     // Posição visual livre, escrita no DOM via rAF (sem estado React por pixel).
     const x = event.clientX - session.grabX;
@@ -413,11 +766,16 @@ export function RunScreen({ api, reducedMotion }: RunScreenProps) {
     const boardRect = boardRef.current?.getBoundingClientRect();
     if (!boardRect || boardRect.width <= 0 || !run) return;
     const cell = boardRect.width / 9;
-    const inside =
-      event.clientX >= boardRect.left - cell * 0.75 &&
-      event.clientX <= boardRect.right + cell * 0.75 &&
-      event.clientY >= boardRect.top - cell * 0.75 &&
-      event.clientY <= boardRect.bottom + cell * 0.75;
+    const piece = run.tray[index];
+    if (!piece) return;
+    const { h, w } = shapeBounds(piece.cells);
+    // Onde a peça precisa estar para soltar: o hit-test é do FANTASMA, não do
+    // dedo — com a peça elevada o dedo pode estar fora do tabuleiro.
+    const inside = rectsOverlap(
+      ghostBox({ x, y }, w, h, cell),
+      boardRect,
+      cell * 0.15,
+    );
     session.inside = inside;
 
     if (!inside) {
@@ -431,18 +789,17 @@ export function RunScreen({ api, reducedMotion }: RunScreenProps) {
       return;
     }
 
-    const piece = run.tray[index];
-    if (!piece) return;
     const drop = resolveDrop(
       run.board,
       piece,
-      { row: (y - boardRect.top) / cell, col: (x - boardRect.left) / cell },
+      cellProjection({ x, y }, boardRect, cell),
       { allowHazard: run.wildcardArmed },
     );
     const current = dragAnchorRef.current;
     if (!current || current.r !== drop.anchor.r || current.c !== drop.anchor.c) {
       dragAnchorRef.current = drop.anchor;
       setDragAnchor(drop.anchor);
+      sfx.play('dragTick');
     }
     setDrag((prev) => {
       if (!prev) return prev;
@@ -469,20 +826,32 @@ export function RunScreen({ api, reducedMotion }: RunScreenProps) {
     let anchor: Coord | null = null;
     let valid = false;
     const boardRect = boardRef.current?.getBoundingClientRect();
-    if (run && boardRect && boardRect.width > 0 && session.inside) {
+    if (run && boardRect && boardRect.width > 0) {
       const piece = run.tray[index];
       const cell = boardRect.width / 9;
-      const gx = session.lastX - session.grabX;
-      const gy = session.lastY - session.grabY - session.lift;
+      // Coordenadas do pointerup (mais precisas que o último move) projetadas
+      // pelo MESMO caminho do preview — o drop cai onde o ghost indicava.
+      const origin = ghostOrigin(event.clientX, event.clientY, {
+        grabX: session.grabX,
+        grabY: session.grabY,
+        lift: session.lift,
+      });
       if (piece) {
-        const drop = resolveDrop(
-          run.board,
-          piece,
-          { row: (gy - boardRect.top) / cell, col: (gx - boardRect.left) / cell },
-          { allowHazard: run.wildcardArmed },
-        );
-        anchor = drop.anchor;
-        valid = drop.valid;
+        const { h, w } = shapeBounds(piece.cells);
+        const inside = rectsOverlap(ghostBox(origin, w, h, cell), boardRect, cell * 0.15);
+        session.inside = inside;
+        if (inside) {
+          const drop = resolveDrop(
+            run.board,
+            piece,
+            cellProjection(origin, boardRect, cell),
+            { allowHazard: run.wildcardArmed },
+          );
+          anchor = drop.anchor;
+          valid = drop.valid;
+        }
+      } else {
+        session.inside = false;
       }
     }
 
@@ -495,10 +864,11 @@ export function RunScreen({ api, reducedMotion }: RunScreenProps) {
       setSelected((prev) => (prev === index ? null : index));
       setPending(null);
       setHover(null);
-      sfx.play('click');
+      sfx.play('select');
       return;
     }
     if (anchor && valid) {
+      sfx.play('drop');
       tryPlace(index, anchor);
       return;
     }
@@ -511,6 +881,7 @@ export function RunScreen({ api, reducedMotion }: RunScreenProps) {
     ghostPos.current = null;
     setDrag(null);
     setDragAnchor(null);
+    sfx.play('uiClose');
   };
 
   const onBoardPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -538,7 +909,7 @@ export function RunScreen({ api, reducedMotion }: RunScreenProps) {
     }
     setPending(anchor);
     setCursor({ r: info.r, c: info.c });
-    sfx.play('click');
+    sfx.play('select');
   };
 
   const onBoardPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -572,7 +943,7 @@ export function RunScreen({ api, reducedMotion }: RunScreenProps) {
     setSelected(null);
     setPending(null);
     setHover(null);
-    sfx.play('click');
+    sfx.play('powerSelect');
   };
 
   useEffect(() => {
@@ -593,7 +964,7 @@ export function RunScreen({ api, reducedMotion }: RunScreenProps) {
         if (run.tray[index]) {
           setSelected((prev) => (prev === index ? null : index));
           setPending(null);
-          sfx.play('click');
+          sfx.play('select');
         }
         return;
       }
@@ -698,13 +1069,13 @@ export function RunScreen({ api, reducedMotion }: RunScreenProps) {
 
       {boss && (
         <div className="run__boss">
-          <BossBar boss={boss} />
+          <BossBar boss={boss} hitTick={bossHitTick} />
         </div>
       )}
 
       <div className="run__body">
         <div className="area-relics">
-          <RelicRail relics={run.relics} />
+          <RelicRail relics={run.relics} pulse={relicPulse} />
         </div>
 
         <div className="area-objectives">
@@ -721,7 +1092,6 @@ export function RunScreen({ api, reducedMotion }: RunScreenProps) {
               className="event-chip"
               onClick={() => {
                 setPanel('event');
-                sfx.play('click');
               }}
             >
               <span className="event-chip__icon">
@@ -751,6 +1121,8 @@ export function RunScreen({ api, reducedMotion }: RunScreenProps) {
                 cursor={selected !== null ? cursor : null}
                 flashes={flashes}
                 popups={popups}
+                placements={placements}
+                powerFx={powerFx}
                 targeting={targeting !== null}
                 disabled={run.status !== 'playing'}
                 boardRef={boardRef}
@@ -850,25 +1222,27 @@ export function RunScreen({ api, reducedMotion }: RunScreenProps) {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 6 }}
                 >
-                <span className="tray-hint__text">
-                  {pending ? 'Toque de novo para confirmar' : 'Toque no tabuleiro para posicionar'}
-                </span>
-                {pending && (
-                  <button type="button" className="btn btn--primary btn--sm" onClick={confirmPending}>
-                    <Icon name="check" size={15} /> Colocar
+                  {!pending && <span className="tray-hint__text">Toque no tabuleiro</span>}
+                  {pending && (
+                    <button
+                      type="button"
+                      className="btn btn--primary btn--sm"
+                      onClick={confirmPending}
+                    >
+                      <Icon name="check" size={15} /> Colocar
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm"
+                    onClick={() => {
+                      setSelected(null);
+                      setPending(null);
+                      setHover(null);
+                    }}
+                  >
+                    Cancelar
                   </button>
-                )}
-                <button
-                  type="button"
-                  className="btn btn--ghost btn--sm"
-                  onClick={() => {
-                    setSelected(null);
-                    setPending(null);
-                    setHover(null);
-                  }}
-                >
-                  Cancelar
-                </button>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -879,6 +1253,7 @@ export function RunScreen({ api, reducedMotion }: RunScreenProps) {
             selected={selected}
             draggingIndex={drag?.index ?? null}
             disabled={run.status !== 'playing'}
+            shuffleKey={shuffleTick}
             onPointerDown={beginPiecePointer}
             onPointerMove={movePiecePointer}
             onPointerUp={endPiecePointer}
@@ -893,12 +1268,39 @@ export function RunScreen({ api, reducedMotion }: RunScreenProps) {
           piece={draggingPiece}
           x={drag.originX}
           y={drag.originY}
-          cellSize={cellSize}
+          cellSize={drag.cell}
           over={drag.over}
           invalid={drag.invalid}
           ghostRef={ghostRef}
         />
       )}
+
+      <AnimatePresence>
+        {stageBanner && !bossIntro && (
+          <StageBanner
+            key={`stage-${stageBanner.id}`}
+            number={stageBanner.number}
+            title={stageBanner.title}
+            objectives={stage.objectives}
+            modifier={stage.modifier ? MODIFIER_MAP[stage.modifier]?.name ?? null : null}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {bossIntro && <BossIntro key={`boss-${bossIntro.id}`} boss={bossIntro.boss} />}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {comboFx && (
+          <ComboBanner
+            key={`combo-${comboFx.id}`}
+            level={comboFx.level}
+            multiplier={comboFx.multiplier}
+            reduced={reducedMotion}
+          />
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {panel === 'energy' && run.energy.offer && (

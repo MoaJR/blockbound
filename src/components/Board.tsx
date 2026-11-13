@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react';
-import type { Board as BoardModel, Cell, Coord } from '../engine/types';
+import type { Board as BoardModel, Cell, Coord, PowerId } from '../engine/types';
 import type { PreviewInfo } from '../engine/preview';
 import { Icon } from '../ui/icons';
 
@@ -16,6 +16,28 @@ export interface BoardFlash {
   id: number;
   rows: number[];
   cols: number[];
+  cells: Coord[];
+  lines: number;
+  cross: boolean;
+  tone: 'gold' | 'cyan' | 'violet' | 'red';
+}
+
+export interface BoardPlacement {
+  id: number;
+  r: number;
+  c: number;
+  color: number;
+  delay: number;
+}
+
+export interface BoardPowerFx {
+  id: number;
+  power: PowerId;
+  r: number;
+  c: number;
+  cells: Coord[];
+  rows: number[];
+  cols: number[];
 }
 
 export interface BoardProps {
@@ -24,6 +46,8 @@ export interface BoardProps {
   cursor: Coord | null;
   flashes: BoardFlash[];
   popups: BoardPopup[];
+  placements: BoardPlacement[];
+  powerFx: BoardPowerFx[];
   targeting: boolean;
   disabled: boolean;
   boardRef: RefObject<HTMLDivElement | null>;
@@ -96,6 +120,8 @@ export function Board({
   cursor,
   flashes,
   popups,
+  placements,
+  powerFx,
   targeting,
   disabled,
   boardRef,
@@ -124,6 +150,9 @@ export function Board({
       onPointerLeave={onPointerLeave}
     >
       <span className="board__aura" aria-hidden="true" />
+      {/* Moldura decorativa: fica ATRÁS e POR FORA da matriz — as peças nunca são
+          recortadas e o acabamento arredondado externo é preservado. */}
+      <span className="board__skin" aria-hidden="true" />
       <div className="board__grid">
         {board.cells.map((row, r) =>
           row.map((cell, c) => <CellView key={`${r}-${c}`} cell={cell} r={r} c={c} />),
@@ -199,16 +228,78 @@ export function Board({
           />
         ))}
 
+      {placements.map((placement) => (
+        <span
+          key={`pl-${placement.id}-${placement.r}-${placement.c}`}
+          className={`place-impact place-impact--c${placement.color}`}
+          style={{ ...posStyle(placement.r, placement.c, size), animationDelay: `${placement.delay}ms` }}
+          aria-hidden="true"
+        />
+      ))}
+
       {flashes.map((flash) => (
-        <span key={`f-${flash.id}`} className="flash-group" aria-hidden="true">
+        <span
+          key={`f-${flash.id}`}
+          className={`flash-group flash-group--tier-${Math.min(4, Math.max(1, flash.lines))} ${
+            flash.cross ? 'is-cross' : ''
+          } flash-group--${flash.tone}`}
+          aria-hidden="true"
+        >
+          {flash.cells.map((cell, index) => (
+            <span
+              key={`sc-${cell.r}-${cell.c}-${index}`}
+              className={`shock-cell shock-cell--${flash.tone}`}
+              style={{ ...posStyle(cell.r, cell.c, size), animationDelay: `${Math.min(170, index * 7)}ms` }}
+            />
+          ))}
           {flash.rows.map((r) => (
-            <span key={`fr-${r}`} className="flash-line flash-line--row" style={{ top: `calc(100% / ${size} * ${r})` }} />
+            <span
+              key={`fr-${r}`}
+              className="flash-line flash-line--row"
+              style={{ top: `calc(100% / ${size} * ${r})` }}
+            />
           ))}
           {flash.cols.map((c) => (
-            <span key={`fc-${c}`} className="flash-line flash-line--col" style={{ left: `calc(100% / ${size} * ${c})` }} />
+            <span
+              key={`fc-${c}`}
+              className="flash-line flash-line--col"
+              style={{ left: `calc(100% / ${size} * ${c})` }}
+            />
           ))}
+          {flash.lines >= 2 && <span className={`shock-ring shock-ring--${flash.tone}`} />}
         </span>
       ))}
+
+      {powerFx.map((fx) =>
+        fx.power === 'drill' ? (
+          <span key={`pf-${fx.id}`} className="power-fx-group" aria-hidden="true">
+            {fx.rows.map((r) => (
+              <span
+                key={`dr-${r}`}
+                className="power-beam power-beam--row"
+                style={{ top: `calc(100% / ${size} * ${r})` }}
+              />
+            ))}
+            {fx.cols.map((c) => (
+              <span
+                key={`dc-${c}`}
+                className="power-beam power-beam--col"
+                style={{ left: `calc(100% / ${size} * ${c})` }}
+              />
+            ))}
+          </span>
+        ) : (
+          <span
+            key={`pf-${fx.id}`}
+            className={`power-ring power-ring--${fx.power}`}
+            style={{
+              left: `calc(100% / ${size} * (${fx.c} + 0.5))`,
+              top: `calc(100% / ${size} * (${fx.r} + 0.5))`,
+            }}
+            aria-hidden="true"
+          />
+        ),
+      )}
 
       {cursor && (
         <span

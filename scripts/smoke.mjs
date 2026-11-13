@@ -165,6 +165,19 @@ async function run() {
 
     await page.getByRole('button', { name: /^jogar$/i }).first().click();
     await page.waitForSelector('.board', { timeout: 5000 });
+    const audioState = await page.evaluate(() => ({
+      audio: document.documentElement.dataset.audio,
+      theme: document.documentElement.dataset.musicTheme,
+      quality: document.documentElement.dataset.quality,
+    }));
+    check(audioState.audio === 'on', 'áudio desbloqueado após gesto');
+    check(audioState.theme === 'gameplay', `tema musical de gameplay ativo (${audioState.theme})`);
+    check(Boolean(audioState.quality), `qualidade visual aplicada (${audioState.quality})`);
+    await page.waitForTimeout(500);
+    const musicDebug = await page.evaluate(() => window.__blockboundMusic?.getState() ?? null);
+    check(Boolean(musicDebug?.started), 'motor de trilha iniciado');
+    check((musicDebug?.steps ?? 0) > 0, `sequenciador agendando passos (${musicDebug?.steps ?? 0})`);
+    check((musicDebug?.layers ?? 0) === 7, 'sete camadas musicais disponíveis');
     check((await page.locator('.tray__card').count()) === 3, 'bandeja com 3 peças');
     check((await page.locator('.objective').count()) >= 1, 'objetivos visíveis');
     check((await page.locator('.power').count()) >= 1, 'poderes disponíveis');
@@ -260,6 +273,10 @@ async function run() {
     await page.getByRole('button', { name: /pausar/i }).click();
     await page.waitForSelector('.modal');
     check((await page.locator('.modal').innerText()).includes('Pausa'), 'tela de pausa abre');
+    check(
+      (await page.evaluate(() => document.documentElement.dataset.musicTheme)) === 'gameplay',
+      'pausa não reinicia a trilha (tema permanece gameplay)',
+    );
     await page.getByRole('button', { name: /continuar/i }).click();
     await page.waitForTimeout(200);
 
@@ -503,6 +520,81 @@ async function run() {
 
     const mTray = await mp.locator('.tray__card:not(.tray__card--used)').first().boundingBox();
     const beforeMobile = await countBlocks(mp);
+
+    // Arraste por TOQUE real (CDP): a peça fica acima do dedo, o preview acompanha
+    // o fantasma e a soltura cai exatamente nas células previstas.
+    const touchClient = await mobile.newCDPSession(mp);
+    const dispatchTouch = async (type, x, y) => {
+      await touchClient.send('Input.dispatchTouchEvent', {
+        type,
+        touchPoints:
+          type === 'touchEnd'
+            ? []
+            : [{ x, y, radiusX: 10, radiusY: 10, force: 1, id: 1 }],
+      });
+    };
+    const touchTrayBox = await mp.locator('.tray__card:not(.tray__card--used)').first().boundingBox();
+    const touchBoardBox = await mp.locator('.board').boundingBox();
+    const expectedLift = await mp.evaluate(() =>
+      Math.round(Math.min(84, Math.max(60, window.innerHeight * 0.082))),
+    );
+    if (touchTrayBox && touchBoardBox && touchTrayBox.y > 0) {
+      const tCell = touchBoardBox.width / 9;
+      const startX = touchTrayBox.x + touchTrayBox.width / 2;
+      const startY = touchTrayBox.y + touchTrayBox.height / 2;
+      const beforeTouchDrag = await countBlocks(mp);
+      await dispatchTouch('touchStart', startX, startY);
+      await mp.waitForTimeout(220);
+      await dispatchTouch('touchMove', startX, startY - 120);
+      await mp.waitForTimeout(90);
+      const ghost = await mp.evaluate(() => {
+        const el = document.querySelector('.drag-ghost');
+        if (!el) return null;
+        const matrix = new DOMMatrixReadOnly(getComputedStyle(el).transform);
+        const shape = el.querySelector('.piece-shape');
+        const rect = shape?.getBoundingClientRect();
+        return { y: matrix.m42, h: rect?.height ?? 0, over: el.classList.contains('is-over') };
+      });
+      const baseGap = ghost ? startY - 120 - (ghost.y + ghost.h) : Number.NaN;
+      check(Boolean(ghost?.over), 'toque ativa o ghost e o estado "sobre o tabuleiro"');
+      check(
+        Math.abs(baseGap - expectedLift) < 1.5,
+        `peça fica ${expectedLift}px acima do dedo (${baseGap.toFixed(1)}px)`,
+      );
+
+      // dedo ABAIXO do tabuleiro: o hit-test é do fantasma, não do dedo
+      await dispatchTouch('touchMove', touchBoardBox.x + tCell * 4.5, touchBoardBox.y + touchBoardBox.height + tCell * 0.2);
+      await mp.waitForTimeout(140);
+      const touchPreview = await mp.evaluate(() => {
+        const board = document.querySelector('.board')?.getBoundingClientRect();
+        if (!board) return [];
+        const size = board.width / 9;
+        return [...document.querySelectorAll('.preview-cell--good')].map((el) => {
+          const rect = el.getBoundingClientRect();
+          return `${Math.round((rect.y - board.y) / size)}:${Math.round((rect.x - board.x) / size)}`;
+        });
+      });
+      await dispatchTouch('touchEnd');
+      await mp.waitForTimeout(340);
+      check(touchPreview.length > 0, 'preview por toque aparece com o dedo fora do tabuleiro');
+      check(
+        (await countBlocks(mp)) > beforeTouchDrag,
+        'soltar por toque posiciona a peça mesmo com o dedo fora do tabuleiro',
+      );
+      const touchMatches = await mp.evaluate((keys) => {
+        const grid = document.querySelector('.board__grid');
+        if (!grid) return false;
+        const cells = [...grid.children];
+        return keys.every((key) => {
+          const [r, c] = key.split(':').map(Number);
+          const cellEl = cells[r * 9 + c];
+          return Boolean(cellEl) && !cellEl.classList.contains('cell--empty');
+        });
+      }, touchPreview);
+      check(touchPreview.length > 0 && touchMatches, 'drop por toque cai exatamente no preview');
+      check((await mp.locator('.drag-ghost').count()) === 0, 'ghost some ao soltar no toque');
+    }
+
     if (mTray) {
       await mp.touchscreen.tap(mTray.x + mTray.width / 2, mTray.y + mTray.height / 2);
       await mp.waitForTimeout(200);

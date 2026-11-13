@@ -1,11 +1,13 @@
 import { m as motion } from 'framer-motion';
 import type { BossState } from '../engine/types';
 import { BOSS_MAP } from '../engine/bosses';
+import { BossPresence } from './BossPresence';
 import { Icon } from '../ui/icons';
 
 export interface BossBarProps {
   boss: BossState;
   compact?: boolean;
+  hitTick?: number;
 }
 
 const ACCENT_LABEL: Record<string, string> = {
@@ -15,18 +17,26 @@ const ACCENT_LABEL: Record<string, string> = {
   boom: 'Explosivo',
 };
 
-export function BossBar({ boss, compact = false }: BossBarProps) {
+export function BossBar({ boss, compact = false, hitTick = 0 }: BossBarProps) {
   const def = BOSS_MAP[boss.id];
   const pct = boss.maxHp > 0 ? Math.max(0, (boss.hp / boss.maxHp) * 100) : 0;
   return (
     <div className={`bossbar bossbar--${def.accent} ${compact ? 'bossbar--compact' : ''} ${boss.phase > 0 ? 'is-enraged' : ''}`}>
-      <div className="bossbar__portrait" aria-hidden="true">
+      <motion.div
+        key={`hit-${hitTick}`}
+        className="bossbar__portrait"
+        aria-hidden="true"
+        initial={{ scale: hitTick > 0 ? 1.12 : 1, x: hitTick > 0 ? -4 : 0 }}
+        animate={{ scale: 1, x: 0 }}
+        transition={{ type: 'spring', stiffness: 420, damping: 18 }}
+      >
+        <BossPresence accent={def.accent} phase={boss.phase} />
         <span className="bossbar__halo" />
         <Icon
           name={def.accent === 'ice' ? 'crystal' : def.accent === 'corrupt' ? 'virus' : def.accent === 'gravity' ? 'spiral' : 'bomb'}
           size={compact ? 20 : 26}
         />
-      </div>
+      </motion.div>
       <div className="bossbar__body">
         <div className="bossbar__title">
           <strong>{def.name}</strong>

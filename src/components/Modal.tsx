@@ -1,6 +1,8 @@
 import { m as motion } from 'framer-motion';
+import { useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { Icon } from '../ui/icons';
+import { sfx } from '../audio/sfx';
 
 export interface ModalProps {
   title: string;
@@ -12,6 +14,11 @@ export interface ModalProps {
 }
 
 export function Modal({ title, subtitle, onClose, children, footer, wide = false }: ModalProps) {
+  useEffect(() => {
+    sfx.play('uiOpen');
+    return () => sfx.play('uiClose');
+  }, []);
+
   return (
     <motion.div
       className="modal-scrim"

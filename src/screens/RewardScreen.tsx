@@ -2,8 +2,12 @@ import { useState } from 'react';
 import { AnimatePresence, m as motion } from 'framer-motion';
 import type { GameApi } from '../hooks/useGame';
 import { RELIC_MAP, RARITY_LABEL, SYNERGY_LABEL } from '../engine/relics';
+import type { RelicDef } from '../engine/relics';
+import { BOSS_MAP } from '../engine/bosses';
 import { RelicArt } from '../ui/relicArt';
+import { RelicAcquireOverlay } from '../components/RelicAcquire';
 import { Icon } from '../ui/icons';
+import { sfx } from '../audio/sfx';
 
 export interface RewardScreenProps {
   api: GameApi;
@@ -13,22 +17,39 @@ export function RewardScreen({ api }: RewardScreenProps) {
   const run = api.run;
   const [picked, setPicked] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [acquiring, setAcquiring] = useState<RelicDef | null>(null);
+  const reduced = api.meta.settings.reducedMotion;
 
   if (!run || run.status !== 'stageClear') return null;
 
   const offer = (run.rewardOffer ?? []).filter((id) => RELIC_MAP[id]);
   const stage = run.stage;
+  const boss = stage.boss ? BOSS_MAP[stage.boss.id] : null;
   const picksLeft = Math.max(1, run.rewardPicksLeft);
 
   const pick = (id: string) => {
     if (busy) return;
+    const relic = RELIC_MAP[id];
+    if (!relic) return;
     setBusy(true);
     setPicked(id);
+    setAcquiring(relic);
+    sfx.playRelic(relic.rarity);
+    const delay = reduced
+      ? 160
+      : relic.rarity === 'legendary'
+        ? 780
+        : relic.rarity === 'epic'
+          ? 560
+          : relic.rarity === 'rare'
+            ? 420
+            : 300;
     window.setTimeout(() => {
       api.pickReward(id);
       setPicked(null);
+      setAcquiring(null);
       setBusy(false);
-    }, 420);
+    }, delay);
   };
 
   return (
@@ -47,13 +68,26 @@ export function RewardScreen({ api }: RewardScreenProps) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05 }}
         >
-          Escolha sua relíquia
+          {boss ? 'Chefe derrotado' : 'Escolha sua relíquia'}
         </motion.h2>
         <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.12 }}>
-          {picksLeft > 1
-            ? `Relicário ativo: você escolhe ${picksLeft} relíquias.`
-            : 'Uma relíquia por estágio — monte a sinergia da sua run.'}
+          {boss
+            ? `${boss.name} caiu. Sua recompensa está entre as relíquias abaixo.`
+            : picksLeft > 1
+              ? `Relicário ativo: você escolhe ${picksLeft} relíquias.`
+              : 'Uma relíquia por estágio — monte a sinergia da sua run.'}
         </motion.p>
+        {boss && (
+          <motion.div
+            className={`reward__boss-banner bossbar--${boss.accent}`}
+            initial={{ opacity: 0, scale: 0.92 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.16, type: 'spring', stiffness: 220, damping: 22 }}
+          >
+            <Icon name="skull" size={16} />
+            <span>{boss.name} derrotado</span>
+          </motion.div>
+        )}
         <div className="reward__stats">
           <span className="chip chip--gold">
             <Icon name="star" size={13} /> {run.score.toLocaleString('pt-BR')} pts
@@ -88,6 +122,7 @@ export function RewardScreen({ api }: RewardScreenProps) {
                 whileTap={{ scale: 0.985 }}
                 onClick={() => pick(id)}
                 disabled={busy}
+                data-sfx="none"
                 aria-label={`Escolher ${relic.name}, ${RARITY_LABEL[relic.rarity]}`}
               >
                 <span className="relic-card__rarity">{RARITY_LABEL[relic.rarity]}</span>
@@ -148,6 +183,10 @@ export function RewardScreen({ api }: RewardScreenProps) {
           <Icon name="refresh" size={15} /> Reroll ({run.rerollsLeft})
         </button>
       </footer>
+
+      <AnimatePresence>
+        {acquiring && <RelicAcquireOverlay key={acquiring.id} relic={acquiring} reduced={reduced} />}
+      </AnimatePresence>
     </div>
   );
 }

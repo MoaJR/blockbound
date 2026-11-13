@@ -71,9 +71,15 @@ function sanitizeMeta(raw: unknown): MetaState {
     settings: {
       ...defaultSettings(),
       volume: Math.min(1, Math.max(0, num(settings.volume, 0.7))),
+      musicVolume: Math.min(1, Math.max(0, num(settings.musicVolume, 0.72))),
+      sfxVolume: Math.min(1, Math.max(0, num(settings.sfxVolume, 0.9))),
       muted: Boolean(settings.muted),
       haptics: settings.haptics === undefined ? true : Boolean(settings.haptics),
       reducedMotion: Boolean(settings.reducedMotion),
+      quality:
+        settings.quality === 'high' || settings.quality === 'economy'
+          ? settings.quality
+          : 'auto',
     },
     seenIntro: Boolean(data.seenIntro),
     lastRun:

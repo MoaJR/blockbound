@@ -13,7 +13,7 @@ npm install
 npm run dev        # http://localhost:5173
 npm run build      # tsc --noEmit + build de produção em dist/
 npm run preview    # serve o build em http://localhost:4173
-npm test           # 105 testes do motor (Vitest)
+npm test           # 112 testes (Vitest)
 npm run smoke      # teste real no Chromium (requer build e Playwright)
 ```
 
@@ -169,14 +169,26 @@ src/
 │  ├─ run.ts          # orquestração (placePiece, usePower, claimEnergyReward...)
 │  ├─ meta.ts         # cristais, desbloqueios, talentos, recordes
 │  └─ achievements.ts # 16 conquistas
-├─ audio/sfx.ts       # síntese Web Audio + mute/volume + haptics
-├─ fx/                # partículas em canvas e barramento de eventos
+├─ audio/
+│  ├─ core.ts          # AudioContext único, buses master/música/SFX, compressor e unlock
+│  ├─ instruments.ts   # mallet, bell, pluck, pad, bass, percussão e envelopes
+│  ├─ sfx.ts           # biblioteca de efeitos + variações + throttle + haptics
+│  ├─ music/
+│  │  ├─ theory.ts     # notas, acordes e transformações do motivo
+│  │  ├─ themes.ts     # 7 composições originais + padrões por camada
+│  │  └─ engine.ts     # sequenciador, crossfade, intensidade, tensão e duck
+│  └─ useAudioScene.ts # liga view/estágio/chefe à trilha adaptativa
+├─ fx/
+│  ├─ particles.ts     # block, spark, glow, ring, confetti e shard em Canvas 2D
+│  ├─ director.ts      # intensidade de limpeza, combos, centro e linhas afetadas
+│  ├─ quality.ts       # auto/alta/econômica, orçamento de partículas e FPS
+│  └─ fxBus.ts         # barramento central de eventos visuais
 ├─ hooks/useGame.ts   # ponte React ↔ engine, persistência e feedback
 ├─ components/        # Board, PieceTray, EnergyBar, ProgressionPanel, HUD, modais...
 ├─ screens/           # Menu, Run, Recompensa, Resultado, Coleção, Conquistas...
 ├─ ui/                # ícones SVG próprios e arte das relíquias
 ├─ persistence.ts     # localStorage versionado (migra runs v1 → v2) com validação
-└─ styles/            # tokens, base, tabuleiro, HUD, cartas, telas, responsivo
+└─ styles/            # tokens, base, tabuleiro, HUD, cartas, telas, responsivo, efeitos
 ```
 
 O motor é **imutável por ação**: cada comando clona o estado, aplica as regras e devolve `{ ok, state, events }`. A UI nunca altera o estado diretamente — apenas consome eventos (`place`, `clear`, `combo`, `energy`, `powerUp`, `stageEvent`...) para som, partículas e popups. O arraste é a única camada puramente visual: a posição do ghost é escrita no DOM via `rAF`, e só o **âncora inteiro** atualiza o estado React do preview. Isso mantém o comportamento determinístico (mesma seed + mesmas ações ⇒ mesmo resultado), testável e serializável.
@@ -191,19 +203,60 @@ O motor é **imutável por ação**: cada comando clona o estado, aplica as regr
 - O tamanho das peças da bandeja é calculado pela largura real do card, garantindo encaixe em qualquer proporção.
 - Duas formas de interação (arrastar e tocar-para-posicionar), com `Pointer Events` unificando mouse, toque e caneta, `setPointerCapture` no card da peça e offset de pega em fração do shape (funciona em qualquer densidade de pixels/zoom).
 
-## Performance e acessibilidade
+## Áudio e game feel
 
-- Partículas só rodam enquanto existem (um `requestAnimationFrame` compartilhado, limite de 420 partículas).
+### Trilha adaptativa
+
+O ambiente não possui encoders de áudio (sem `ffmpeg` de áudio, `sox`, `lame` ou `oggenc`; o ffmpeg do Playwright é somente vídeo/VP9). Por isso a trilha é **original e sintetizada em tempo real com Web Audio API**, sem URLs externas e sem arquivos binários fictícios.
+
+- **7 temas:** menu, gameplay, estágio avançado, chefe, recompensa, vitória e derrota.
+- **Motivo original de 4 notas** (tônica → terça → quinta → nona) transformado em cada tema: contemplativo no menu, sincopado no gameplay, invertido no avançado, cromatizado no chefe e resolvido em fanfarra na vitória.
+- **Camadas independentes:** pad, baixo, arpejo, melodia, sinos, percussão e tensão. A intensidade (0–3) ativa camadas sem reiniciar a faixa.
+- **Tensão adaptativa:** entra com poucas jogadas, chefe com vida baixa, tabuleiro travado ou combo alto.
+- **Crossfade** entre temas (1,2–2,2 s) no barramento de música; abrir pausa/configurações aplica **duck**, não reinicia.
+- **Vitória** inclui uma sequência de fanfarra no primeiro ciclo; chefes têm stingers de entrada e derrota.
+- `visibilitychange` faz fade/suspensão e retoma sem perder o ponto da composição.
+
+### Efeitos sonoros
+
+`src/audio/sfx.ts` tem receitas próprias para pegar peça, arrastar, soltar, encaixar, inválido, linha, coluna, cruz, combos, multiplicador, cada poder (bomba/martelo/broca/reorganizar/conversão/coringa), raridades de relíquia, interface, cristais, conquistas, chefe, vitória e derrota. Sons repetidos recebem variação de altura/ganho e throttle individual para evitar duplicação.
+
+### Áudio no navegador
+
+- Um único `AudioContext` compartilhado entre música e SFX, criado apenas no primeiro gesto legítimo do jogador.
+- `pointerdown`, `keydown` e `touchstart` desbloqueiam/retomam o contexto (incluindo iOS/Safari).
+- Volumes separados de **geral, música e efeitos**, mute global e preferências persistidas no `localStorage`.
+- O tema ativo é exposto em `document.documentElement.dataset.musicTheme` e o estado do motor em `window.__blockboundMusic.getState()` para diagnóstico.
+
+### Feedback visual
+
+- Encaixe com impacto por célula, compressão/expansão e partículas; a confirmação lógica acontece antes da animação.
+- Arraste com elevação, sombra, escala e ghost independente; tick sutil ao mudar de âncora.
+- Limpeza com flash, pulso, partículas na cor real do bloco, pontuação flutuante e shake proporcional à quantidade de linhas/cruz.
+- Combos com banner e efeitos crescentes: ×2 brilho, ×3 confete, ×5 anel de energia, ×10 apresentação especial.
+- Poderes com anéis/feixes próprios; reorganizar faz flip nas peças da bandeja.
+- Relíquias com entrada, aquisição por raridade, pulso de ativação e apresentação curta de lendária.
+- Chefes com presença viva em CSS (cristais orbitando, esporos, anéis gravitacionais, pavio/ brasas), entrada cinematográfica curta, reação a dano e banner de derrota.
+
+### Qualidade e performance
+
+- Configuração **Automática / Alta / Econômica** nas opções.
+- O modo automático parte da capacidade do dispositivo (`hardwareConcurrency`, `deviceMemory`) e pode rebaixar suavemente se o frame time médio ficar alto, sem mudanças no meio de uma animação crítica.
+- Econômica reduz partículas (420 → 180), limita DPR, remove blur pesado e enxuga efeitos.
+- `prefers-reduced-motion` e a opção própria desligam ambient/partículas/cinemáticas, mantendo som, flash curto e mudança de estado.
+- Partículas vivem apenas enquanto existem, com atualização por um único `requestAnimationFrame` e limpeza de timers/efeitos ao desmontar.
+
+- Partículas só rodam enquanto existem (um `requestAnimationFrame` compartilhado, teto de 420 em alta / 180 em econômica).
 - Células do tabuleiro memoizadas; o ghost do arraste escreve `transform` direto no DOM (um write por frame), e o preview só recalcula quando o âncora inteiro muda.
 - Sem imagens externas: blocos, ícones, logo e arte das relíquias são CSS/SVG.
-- `prefers-reduced-motion` + configuração própria desligam animações/partículas.
+- `prefers-reduced-motion` + configuração própria desligam ambient, partículas e cinemáticas, mantendo o feedback essencial.
 - Foco visível, rótulos ARIA nos botões, tabuleiro como `role="grid"` e região `aria-live` para pontuação/objetivos.
 
 ---
 
 ## Testes
 
-`npm test` cobre o motor (104 asserções):
+`npm test` cobre o motor (112 asserções, incluindo composição musical e direção de efeitos):
 
 - posicionamento em todas as orientações e limites;
 - projeção do arraste → âncora: arredondamento, clamp nas bordas, conflitos e Coringa;
@@ -219,7 +272,7 @@ O motor é **imutável por ação**: cada comando clona o estado, aplica as regr
 - salvamento/restauração (incluindo migração v1 → v2) e metaprogressão;
 - justiça do gerador (120 tabuleiros aleatórios) e determinismo por seed.
 
-`npm run smoke` abre o jogo em Chromium (desktop 1440×900, mobile 390×844, tablet 820×1180 e landscape 844×390) e valida: logo, início de run, barra de energia, tap-to-place, **arraste sem snap** (delta do transform ≈ delta do ponteiro), preview fantasma + pontuação prevista durante o arraste, poder, pausa, autosave/recuperação, recompensa de estágio, **recompensa de energia aplicada uma única vez**, **evento injetado consumido ao escolher**, vitória, telas secundárias, ausência de overflow horizontal e de erros de console. As capturas ficam em `screenshots/`.
+`npm run smoke` abre o jogo em Chromium (desktop 1440×900, mobile 390×844, tablet 820×1180 e landscape 844×390) e valida: logo, início de run, **desbloqueio de áudio + tema musical de gameplay + sequenciador ativo + 7 camadas**, qualidade visual aplicada, pausa sem reiniciar a trilha, barra de energia, tap-to-place, **arraste sem snap** (delta do transform ≈ delta do ponteiro), preview fantasma + pontuação prevista durante o arraste, poder, pausa, autosave/recuperação, recompensa de estágio, **recompensa de energia aplicada uma única vez**, **evento injetado consumido ao escolher**, vitória, telas secundárias, ausência de overflow horizontal e de erros de console. As capturas ficam em `screenshots/`.
 
 ---
 
@@ -228,5 +281,6 @@ O motor é **imutável por ação**: cada comando clona o estado, aplica as regr
 - Interface em **pt-BR** apenas (textos organizados para futura i18n).
 - Sem personagens/temas cosméticos desbloqueáveis e sem service worker/offline (o jogo funciona 100% local após o carregamento).
 - O balanceamento dos alvos de objetivo é parametrizado em `stages.ts` e pode ser ajustado sem tocar na UI.
+- A trilha é sintetizada em tempo real (Web Audio) porque o ambiente não possui encoder de áudio (OGG/MP3) — não há arquivos de música externos. A validação automatizada confirma desbloqueio, tema e sequenciador; a audição física em Safari/iOS e Android é recomendada manualmente.
 - A prévia usa a **fórmula real** de pontuação para o posicionamento + linhas. Efeitos de relíquias que destroem células extras **depois** da limpeza (Cristal Explosivo, Coroa do Vazio, TNT) não alteram esse valor e não são simulados no preview — eles acontecem normalmente ao confirmar.
 - O smoke test manipula o save apenas para acelerar cenários de recompensa/vitória; toda a lógica de conclusão é executada pelo motor real.

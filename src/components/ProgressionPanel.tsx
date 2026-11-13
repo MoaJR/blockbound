@@ -1,3 +1,4 @@
+import { m as motion } from 'framer-motion';
 import type { RewardChoice } from '../engine/types';
 import { RARITY_LABEL } from '../engine/relics';
 import { POWER_MAP } from '../engine/powers';
@@ -5,6 +6,7 @@ import { Modal } from './Modal';
 import { POWER_ICON } from './PowerBar';
 import { Icon } from '../ui/icons';
 import type { IconName } from '../ui/icons';
+import { sfx } from '../audio/sfx';
 
 export interface ProgressionPanelProps {
   title: string;
@@ -61,17 +63,32 @@ export function ProgressionPanel({
       }
     >
       <div className={`choice-grid choice-grid--${Math.min(3, Math.max(1, options.length))}`}>
-        {options.map((choice) => {
+        {options.map((choice, index) => {
           const cost = choice.cost ?? 0;
           const fragmentCost = choice.fragmentCost ?? 0;
           const affordable = cost <= crystals && fragmentCost <= fragments;
           return (
-            <button
+            <motion.button
               type="button"
               key={choice.id}
-              className={`choice-card rarity-${choice.rarity} ${affordable ? '' : 'is-locked'}`}
-              onClick={() => onPick(choice.id)}
+              className={`choice-card choice-card--${choice.kind} rarity-${choice.rarity} ${
+                affordable ? '' : 'is-locked'
+              }`}
+              initial={{ opacity: 0, y: 18, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ delay: index * 0.06, type: 'spring', stiffness: 260, damping: 24 }}
+              onClick={() => {
+                if (!affordable) return;
+                if (choice.power) sfx.play('star');
+                else if (choice.kind === 'crystals') sfx.play('crystal');
+                else if (choice.kind === 'fragments') sfx.play('fragment');
+                else if (choice.kind === 'relic') sfx.play('rewardRare');
+                else if (choice.kind === 'energy' || choice.kind === 'charges') sfx.play('energyReady');
+                else sfx.play('reward');
+                onPick(choice.id);
+              }}
               disabled={!affordable}
+              data-sfx="none"
               aria-label={`${choice.label}${
                 cost > 0 ? `, ${cost} cristais` : fragmentCost > 0 ? `, ${fragmentCost} fragmentos` : ''
               }`}
@@ -97,7 +114,7 @@ export function ProgressionPanel({
                   </span>
                 )}
               </span>
-            </button>
+            </motion.button>
           );
         })}
       </div>

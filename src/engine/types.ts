@@ -344,11 +344,19 @@ export type ScreenId =
   | 'stats'
   | 'talents';
 
+export type VisualQuality = 'auto' | 'high' | 'economy';
+
 export interface Settings {
+  /** Volume geral (mestre). */
   volume: number;
+  /** Volume relativo da trilha. */
+  musicVolume: number;
+  /** Volume relativo dos efeitos. */
+  sfxVolume: number;
   muted: boolean;
   haptics: boolean;
   reducedMotion: boolean;
+  quality: VisualQuality;
 }
 
 export interface MetaStats {

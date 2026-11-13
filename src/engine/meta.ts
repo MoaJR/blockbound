@@ -66,7 +66,15 @@ export function defaultStats(): MetaStats {
 }
 
 export function defaultSettings(): Settings {
-  return { volume: 0.7, muted: false, haptics: true, reducedMotion: false };
+  return {
+    volume: 0.7,
+    musicVolume: 0.72,
+    sfxVolume: 0.9,
+    muted: false,
+    haptics: true,
+    reducedMotion: false,
+    quality: 'auto',
+  };
 }
 
 export function defaultMeta(): MetaState {

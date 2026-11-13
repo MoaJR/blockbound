@@ -98,7 +98,6 @@ export function useGame(): GameApi {
 
   useEffect(() => {
     saveMeta(meta);
-    sfx.configure(meta.settings.volume, meta.settings.muted);
     setHaptics(meta.settings.haptics);
   }, [meta]);
 
@@ -138,25 +137,53 @@ export function useGame(): GameApi {
             break;
           case 'place':
             sfx.play('place');
+            if (event.special === 'prism') sfx.play('prism');
+            else if (event.special === 'tnt') sfx.play('tnt');
+            else if (event.special === 'star') sfx.play('star');
             haptic(10);
             break;
-          case 'clear':
-            sfx.play(event.lines >= 3 ? 'clear3' : event.lines === 2 ? 'clear2' : 'clear1');
+          case 'clear': {
+            const cross = event.rows.length > 0 && event.cols.length > 0;
+            if (cross) sfx.play('clearCross');
+            else if (event.lines >= 4) sfx.play('clear4');
+            else if (event.lines >= 3) sfx.play('clear3');
+            else if (event.lines === 2) sfx.play('clear2');
+            else if (event.rows.length > 0) sfx.play('clearRow');
+            else sfx.play('clearCol');
+            if (event.corrupt > 0 || event.bombs > 0 || event.frozen > 0) sfx.play('special');
             haptic(event.lines >= 2 ? [14, 26, 16] : 12);
             break;
+          }
           case 'combo':
-            if (event.level >= 3) sfx.play('combo', event.level);
+            if (event.level >= 5) sfx.play('comboHigh', event.level);
+            else if (event.level >= 2) sfx.play('combo', event.level);
+            if (event.multiplier >= 2 && event.level >= 3) sfx.play('multiplier');
             break;
           case 'power':
-            sfx.play('power');
+            sfx.play(
+              event.power === 'bomb'
+                ? 'bomb'
+                : event.power === 'hammer'
+                  ? 'hammer'
+                  : event.power === 'drill'
+                    ? 'drill'
+                    : event.power === 'shuffle'
+                      ? 'shuffle'
+                      : event.power === 'convert'
+                        ? 'convert'
+                        : event.power === 'wildcard'
+                          ? 'wildcard'
+                          : 'power',
+            );
             haptic(18);
             break;
           case 'boss':
-            sfx.play('boss');
+            sfx.play('bossHit');
             haptic(24);
             break;
           case 'stageClear':
-            sfx.play('stageClear');
+            if (runRef.current?.stage.isBoss) sfx.play('bossDefeat');
+            else sfx.play('stageClear');
             break;
           case 'victory':
             sfx.play('victory');
@@ -166,9 +193,11 @@ export function useGame(): GameApi {
             sfx.play('defeat');
             haptic(140);
             break;
-          case 'relic':
-            sfx.play('relic');
+          case 'relic': {
+            const relic = relicById(event.id);
+            if (relic) sfx.playRelic(relic.rarity);
             break;
+          }
           case 'rescue':
             sfx.play('star');
             break;
@@ -178,11 +207,19 @@ export function useGame(): GameApi {
           case 'energy':
             break;
           case 'energyReady':
-            sfx.play('reward');
+            sfx.play('energyReady');
             haptic(16);
             break;
           case 'rewardClaimed':
-            sfx.play('relic');
+            sfx.play(
+              event.kind === 'crystals'
+                ? 'crystal'
+                : event.kind === 'fragments'
+                  ? 'fragment'
+                  : event.kind === 'power_up' || event.kind === 'new_power'
+                    ? 'star'
+                    : 'reward',
+            );
             haptic(20);
             break;
           case 'powerUp':
@@ -196,12 +233,13 @@ export function useGame(): GameApi {
             sfx.play('reward');
             break;
           case 'fragment':
-            sfx.play('crystal');
+            sfx.play('fragment');
             break;
           case 'toast':
             pushToast(event.text, event.tone ?? 'info');
             break;
           case 'mission':
+            sfx.play('stageUp');
             pushToast(event.text, 'info');
             break;
           default:
@@ -220,6 +258,9 @@ export function useGame(): GameApi {
     setMeta(record.meta);
     setSummary({ ...result, crystals: record.crystals });
     setNewAchievements(record.achievements);
+    if (record.achievements.length > 0) {
+      window.setTimeout(() => sfx.play('achievement'), 450);
+    }
     setRun(null);
     runRef.current = null;
     clearRun();
@@ -253,6 +294,7 @@ export function useGame(): GameApi {
     setToasts([]);
     setPaused(false);
     setView('run');
+    sfx.play('stageUp');
     handleEvents(created.events);
   }, [handleEvents]);
 
@@ -262,12 +304,12 @@ export function useGame(): GameApi {
       pushToast('Nenhuma run salva encontrada.', 'bad');
       return;
     }
+    sfx.play('uiOpen');
     setView(current.status === 'stageClear' ? 'reward' : 'run');
     setPaused(false);
   }, [pushToast]);
 
   const goto = useCallback((next: ScreenId) => {
-    sfx.play('click');
     setPaused(false);
     setSettingsOpen(false);
     setToasts([]);
@@ -275,7 +317,6 @@ export function useGame(): GameApi {
   }, []);
 
   const goMenu = useCallback(() => {
-    sfx.play('click');
     setPaused(false);
     setSettingsOpen(false);
     setToasts([]);
@@ -377,7 +418,6 @@ export function useGame(): GameApi {
   }, [applyResult]);
 
   const openSettings = useCallback(() => {
-    sfx.play('click');
     setSettingsOpen(true);
   }, []);
 
@@ -397,7 +437,7 @@ export function useGame(): GameApi {
       }
       metaRef.current = result.meta;
       setMeta(result.meta);
-      sfx.play('crystal');
+      sfx.play('buy');
       const relic = relicById(id);
       pushToast(`${relic?.name ?? 'Relíquia'} desbloqueada!`, 'gold');
     },
@@ -414,7 +454,7 @@ export function useGame(): GameApi {
       }
       metaRef.current = result.meta;
       setMeta(result.meta);
-      sfx.play('crystal');
+      sfx.play('buy');
       pushToast('Poder desbloqueado!', 'gold');
     },
     [pushToast],
@@ -430,7 +470,7 @@ export function useGame(): GameApi {
       }
       metaRef.current = result.meta;
       setMeta(result.meta);
-      sfx.play('crystal');
+      sfx.play('buy');
       pushToast('Talento aprimorado!', 'gold');
     },
     [pushToast],

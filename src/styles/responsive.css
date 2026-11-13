@@ -194,58 +194,108 @@
 }
 
 /* ---------- Mobile ---------- */
+/* HUD compacto: prioridade vertical = cabeçalho, indicadores, tabuleiro, doca.
+   Nada de scale(): paddings/gaps/fontes reais, com dvh para acompanhar a
+   viewport dinâmica (barras do navegador). */
 @media (max-width: 640px) {
   .run-screen {
-    padding: calc(4px + env(safe-area-inset-top)) 7px calc(6px + env(safe-area-inset-bottom));
-    gap: 6px;
+    /* Áreas seguras já vêm de `.app`; aqui só o respiro da tela. */
+    padding: 3px 4px 4px;
+    gap: 4px;
   }
 
   .hud {
     gap: 6px;
-    padding: 6px 8px;
-    border-radius: 14px;
+    padding: 4px 8px;
+    border-radius: 13px;
   }
 
   .icon-btn {
-    width: 36px;
-    height: 36px;
+    width: 34px;
+    height: 34px;
     border-radius: 10px;
   }
 
   .hud__stage-label {
-    font-size: 9.5px;
-    letter-spacing: 0.12em;
+    font-size: 9px;
+    letter-spacing: 0.1em;
   }
 
   .hud__stage-name {
-    font-size: 11px;
+    font-size: 10.5px;
     max-width: 30vw;
   }
 
   .hud__score-label {
-    font-size: 8px;
+    font-size: 7.5px;
+    letter-spacing: 0.2em;
   }
 
   .hud__score-value {
-    font-size: clamp(20px, 6.6vw, 28px);
+    font-size: clamp(20px, 6.4vw, 27px);
   }
 
   .hud__combo {
-    font-size: 11px;
+    font-size: 10.5px;
+  }
+
+  .run__body {
+    gap: 5px;
+  }
+
+  .area-relics > .relic-rail {
+    gap: 3px;
+  }
+
+  .area-relics .rail-label {
+    font-size: 9px;
+    letter-spacing: 0.12em;
+  }
+
+  .relic-rail__count {
+    font-size: 9px;
+  }
+
+  .energybar {
+    padding: 4px 8px;
+    gap: 3px;
+    margin-bottom: 5px;
+    border-radius: 11px;
+  }
+
+  .energybar__main {
+    gap: 3px;
+  }
+
+  .energybar__value {
+    font-size: 9.5px;
+  }
+
+  .energybar__track {
+    height: 6px;
+  }
+
+  .energybar__wallet .chip {
+    padding: 2px 7px;
+    font-size: 9px;
+  }
+
+  .objectives {
+    gap: 4px;
   }
 
   .area-tray {
-    gap: 5px;
+    gap: 4px;
   }
 
   .tray {
-    gap: 5px;
-    padding: 5px;
-    border-radius: 15px;
+    gap: 4px;
+    padding: 4px;
+    border-radius: 14px;
   }
 
   .tray__card {
-    height: clamp(62px, 11vh, 84px);
+    height: clamp(58px, 10.5dvh, 80px);
     padding: 4px;
     border-radius: 11px;
   }
@@ -254,56 +304,71 @@
     display: none;
   }
 
+  .tray-hint-slot {
+    height: 32px;
+    min-height: 32px;
+  }
+
   .tray-hint {
     font-size: 10.5px;
     gap: 6px;
-    padding: 3px 7px;
+    padding: 2px 6px;
   }
 
   .tray-hint .btn {
-    min-height: 30px;
-    padding: 3px 9px;
+    gap: 6px;
+    min-height: 26px;
+    padding: 2px 9px;
     font-size: 10px;
   }
 
   .objective {
-    padding: 6px 8px;
-    gap: 7px;
+    padding: 4px 7px;
+    gap: 6px;
+    border-radius: 10px;
   }
 
   .objective__icon {
-    width: 23px;
-    height: 23px;
+    width: 22px;
+    height: 22px;
+    border-radius: 7px;
   }
 
   .objective__kind {
-    font-size: 8px;
+    font-size: 7.5px;
+    letter-spacing: 0.14em;
   }
 
   .objective__text {
-    font-size: 11px;
+    font-size: 10.5px;
+    margin: 0 0 3px;
   }
 
   .objective__count {
-    font-size: 10px;
+    font-size: 9.5px;
+  }
+
+  .objective__track {
+    height: 4px;
   }
 
   .objective__footer .chip {
     font-size: 9px;
-    padding: 3px 7px;
+    padding: 2px 7px;
   }
 
   .power {
     flex-direction: column;
-    gap: 2px;
-    min-width: 54px;
-    padding: 5px 7px 4px;
-    border-radius: 11px;
+    gap: 1px;
+    min-width: 50px;
+    padding: 3px 5px 2px;
+    border-radius: 10px;
   }
 
   .power__icon {
-    width: 30px;
-    height: 30px;
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
   }
 
   .power__meta {
@@ -316,7 +381,7 @@
   }
 
   .power__name {
-    font-size: 9px;
+    font-size: 8.5px;
     font-weight: 800;
     letter-spacing: 0.01em;
     white-space: nowrap;
@@ -324,6 +389,8 @@
 
   .powerbar__list {
     justify-content: center;
+    gap: 5px;
+    padding: 2px 2px 4px;
   }
 
   .relic-rail .rail-empty {
@@ -331,11 +398,11 @@
   }
 
   .power__charges {
-    top: -4px;
-    right: -4px;
-    min-width: 17px;
-    height: 17px;
-    font-size: 9px;
+    top: -3px;
+    right: -3px;
+    min-width: 15px;
+    height: 15px;
+    font-size: 8px;
   }
 
   .bossbar {
@@ -553,6 +620,15 @@
   }
 }
 
+/* ---------- Telas altas: o espaço extra vai para a doca ---------- */
+@media (max-width: 640px) and (min-height: 800px) {
+  .tray__card {
+    /* Cards mais altos = peças maiores na bandeja, sem tirar área do tabuleiro
+       (que nessas telas já é limitado pela largura). */
+    height: clamp(88px, 11dvh, 104px);
+  }
+}
+
 /* ---------- Telas muito estreitas ---------- */
 @media (max-width: 480px) {
   .hud__stage-name {
@@ -564,8 +640,8 @@
   }
 
   .tray-hint-slot {
-    height: 28px;
-    min-height: 28px;
+    height: 32px;
+    min-height: 32px;
   }
 }
 
@@ -596,7 +672,8 @@
 /* ---------- Celular na horizontal ---------- */
 @media (min-width: 640px) and (max-height: 560px) {
   .run-screen {
-    padding: calc(3px + env(safe-area-inset-top)) 8px calc(3px + env(safe-area-inset-bottom));
+    /* Áreas seguras são aplicadas em `.app`. */
+    padding: 3px 8px;
     gap: 5px;
   }
 
@@ -722,8 +799,20 @@
   }
 
   .tray-hint-slot {
-    height: 24px;
-    min-height: 24px;
+    height: 32px;
+    min-height: 32px;
+  }
+
+  .tray-hint {
+    padding: 2px 6px;
+    font-size: 10.5px;
+  }
+
+  .tray-hint .btn {
+    gap: 6px;
+    min-height: 26px;
+    padding: 2px 9px;
+    font-size: 10px;
   }
 
   .tray {

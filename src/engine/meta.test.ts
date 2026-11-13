@@ -121,6 +121,20 @@ describe('metaprogressão', () => {
     expect(meta.settings.muted).toBe(true);
     expect(meta.settings.volume).toBe(0.3);
     expect(meta.settings.haptics).toBe(true);
+    expect(meta.settings.musicVolume).toBeGreaterThan(0);
+    expect(meta.settings.sfxVolume).toBeGreaterThan(0);
+    expect(meta.settings.quality).toBe('auto');
+  });
+
+  it('preserva volumes e qualidade visual independentes', () => {
+    const meta = updateSettings(defaultMeta(), {
+      musicVolume: 0.42,
+      sfxVolume: 0.91,
+      quality: 'economy',
+    });
+    expect(meta.settings.musicVolume).toBeCloseTo(0.42);
+    expect(meta.settings.sfxVolume).toBeCloseTo(0.91);
+    expect(meta.settings.quality).toBe('economy');
   });
 
   it('snapshot expõe apenas os desbloqueios', () => {

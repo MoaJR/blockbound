@@ -61,18 +61,33 @@ export function MainMenu({ api }: MainMenuProps) {
         </div>
       </section>
 
-      <section className="menu__actions">
-        <button type="button" className="btn btn--primary menu__play" onClick={api.startRun}>
+      <motion.section
+        className="menu__actions"
+        initial={{ opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.12, duration: 0.32, ease: [0.22, 0.61, 0.36, 1] }}
+      >
+        <motion.button
+          type="button"
+          className="btn btn--primary menu__play"
+          onClick={api.startRun}
+          whileTap={{ scale: 0.975 }}
+        >
           <Icon name="play" size={20} />
           Jogar
-        </button>
+        </motion.button>
         {api.hasSave && (
-          <button type="button" className="btn menu__continue" onClick={api.continueRun}>
+          <motion.button
+            type="button"
+            className="btn menu__continue"
+            onClick={api.continueRun}
+            whileTap={{ scale: 0.98 }}
+          >
             <span className="menu__continue-main">
               <Icon name="play" size={16} /> Continuar
             </span>
             <span className="menu__continue-sub">Estágio {continueStage} · {api.run?.score.toLocaleString('pt-BR')} pts</span>
-          </button>
+          </motion.button>
         )}
 
         <div className="menu__grid">
@@ -96,7 +111,7 @@ export function MainMenu({ api }: MainMenuProps) {
             <em>{meta.stats.runs} runs</em>
           </button>
         </div>
-      </section>
+      </motion.section>
 
       <footer className="menu__foot">
         <span>

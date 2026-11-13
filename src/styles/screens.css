@@ -76,10 +76,12 @@
 
 .logo__text {
   font-family: var(--font-display);
-  font-size: clamp(40px, 12.5vw, 88px);
+  font-size: clamp(30px, 10.2vw, 88px);
   font-weight: 900;
-  letter-spacing: 0.055em;
+  letter-spacing: 0.035em;
   line-height: 0.9;
+  white-space: nowrap;
+  max-width: 100%;
   background: linear-gradient(180deg, #f2fdff 0%, #8feaff 42%, #33a8de 72%, #1b6fae 100%);
   -webkit-background-clip: text;
   background-clip: text;

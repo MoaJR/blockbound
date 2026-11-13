@@ -8,6 +8,7 @@ import './styles/hud.css';
 import './styles/cards.css';
 import './styles/screens.css';
 import './styles/responsive.css';
+import './styles/effects.css';
 
 const container = document.getElementById('root');
 if (!container) throw new Error('Elemento #root não encontrado');

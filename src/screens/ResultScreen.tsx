@@ -23,11 +23,26 @@ export function ResultScreen({ api }: ResultScreenProps) {
   return (
     <div className={`result screen ${won ? 'is-victory' : 'is-defeat'}`}>
       {won && (
-        <div className="result__rays" aria-hidden="true">
-          {Array.from({ length: 14 }).map((_, index) => (
-            <span key={index} style={{ transform: `rotate(${index * (360 / 14)}deg)` }} />
-          ))}
-        </div>
+        <>
+          <div className="result__rays" aria-hidden="true">
+            {Array.from({ length: 14 }).map((_, index) => (
+              <span key={index} style={{ transform: `rotate(${index * (360 / 14)}deg)` }} />
+            ))}
+          </div>
+          <div className="result__sparkles" aria-hidden="true">
+            {Array.from({ length: 18 }).map((_, index) => (
+              <span
+                key={index}
+                style={{
+                  left: `${8 + ((index * 37) % 84)}%`,
+                  top: `${12 + ((index * 53) % 72)}%`,
+                  animationDelay: `${(index % 7) * 0.22}s`,
+                  animationDuration: `${2.4 + (index % 5) * 0.45}s`,
+                }}
+              />
+            ))}
+          </div>
+        </>
       )}
 
       <motion.header
