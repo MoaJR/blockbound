@@ -356,7 +356,7 @@ export const RELICS: RelicDef[] = [
   {
     id: 'time_glass',
     name: 'Vidro do Tempo',
-    desc: '+2 jogadas por estágio, mas -10% de pontos em tudo.',
+    desc: '+2 de par por câmara (mais bônus de eficiência), mas -10% de pontos em tudo.',
     rarity: 'epic',
     icon: 'glass',
     tags: ['precision'],

@@ -1056,7 +1056,8 @@ html[data-quality='low'] .result__rays {
 .reduce-motion .float-block,
 .reduce-motion .float-star,
 .reduce-motion .float-crystal,
-.reduce-motion .logo__glyph-ring {
+.reduce-motion .logo__glyph-ring,
+.reduce-motion .chip.is-overtime {
   animation: none !important;
 }
 

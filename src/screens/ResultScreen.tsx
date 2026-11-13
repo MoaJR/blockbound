@@ -67,6 +67,11 @@ export function ResultScreen({ api }: ResultScreenProps) {
         <span className="result__score-label">PONTUAÇÃO FINAL</span>
         <AnimatedNumber value={summary.score} className="result__score-value" />
         <em>Estágio {summary.stage} de 8</em>
+        {summary.stats.efficiencyBonus > 0 && (
+          <em className="result__efficiency">
+            Eficiência +{summary.stats.efficiencyBonus.toLocaleString('pt-BR')}
+          </em>
+        )}
       </motion.div>
 
       <div className="result__grid">

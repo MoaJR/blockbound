@@ -41,6 +41,7 @@ function summary(overrides: Partial<RunSummary> = {}): RunSummary {
       frozenThawed: 2,
       bestDrop: 400,
       bosses: 0,
+      efficiencyBonus: 0,
     },
     durationSeconds: 120,
     ...overrides,

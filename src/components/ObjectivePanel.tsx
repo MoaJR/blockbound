@@ -25,7 +25,9 @@ export function ObjectivePanel({
   compact = false,
 }: ObjectivePanelProps) {
   const modifierDef = modifier ? MODIFIER_MAP[modifier] : null;
-  const lowMoves = movesLeft <= 4;
+  const overtime = movesLeft < 0;
+  const nearPar = movesLeft >= 0 && movesLeft <= 4;
+  const parTone = overtime ? 'chip--red' : nearPar ? 'chip--gold' : 'chip--cyan';
   return (
     <div className={`objectives ${compact ? 'objectives--compact' : ''}`}>
       {objectives.map((objective, index) => {
@@ -62,9 +64,16 @@ export function ObjectivePanel({
       })}
 
       <div className="objective__footer">
-        <span className={`chip ${lowMoves ? 'chip--red' : 'chip--cyan'}`}>
-          <Icon name="hourglass" size={14} />
-          {movesLeft} jogadas
+        <span
+          className={`chip ${parTone} ${overtime ? 'is-overtime' : ''}`}
+          title={
+            overtime
+              ? `Prorrogação: ${-movesLeft} jogada(s) além do par (de ${movesTotal}). A cada 2, uma célula corrompe.`
+              : `Par da câmara: ${movesLeft} de ${movesTotal} jogada(s). Termine dentro do par para ganhar bônus de eficiência.`
+          }
+        >
+          <Icon name={overtime ? 'flame' : 'hourglass'} size={14} />
+          {overtime ? `Prorrogação · ${-movesLeft}` : `Par · ${movesLeft}`}
         </span>
         {modifierDef && (
           <span
@@ -79,7 +88,10 @@ export function ObjectivePanel({
         )}
       </div>
       <span className="sr-only" aria-live="polite">
-        {objectives.map((objective) => objectiveText(objective)).join('. ')}. {movesLeft} jogadas restantes de {movesTotal}.
+        {objectives.map((objective) => objectiveText(objective)).join('. ')}.{' '}
+        {overtime
+          ? `Prorrogação: ${-movesLeft} jogadas além do par de ${movesTotal}.`
+          : `${movesLeft} de ${movesTotal} jogadas de par restantes.`}
       </span>
     </div>
   );

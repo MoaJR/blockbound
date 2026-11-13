@@ -300,6 +300,26 @@ async function run() {
     check(overflow <= 1, `sem overflow horizontal no desktop (${overflow}px)`);
     await page.screenshot({ path: path.join(SHOTS, '03-run-desktop-after.png') });
 
+    // ---------- PRORROGAÇÃO (par esgotado não encerra a run) ----------
+    await page.evaluate(() => {
+      const raw = localStorage.getItem('blockbound.run.v1');
+      if (!raw) return;
+      const run = JSON.parse(raw);
+      run.stage.objectives = [{ kind: 'score', target: 999999, progress: 0 }];
+      run.stage.movesLeft = 0;
+      run.stage.movesTotal = 30;
+      localStorage.setItem('blockbound.run.v1', JSON.stringify(run));
+    });
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.getByRole('button', { name: /continuar/i }).click();
+    await page.waitForSelector('.board');
+    const beforeOvertime = await countBlocks(page);
+    await playTapToPlace(page);
+    check((await page.locator('.board').count()) === 1, 'par esgotado não encerra a run');
+    check((await countBlocks(page)) > beforeOvertime, 'jogada em prorrogação é aplicada');
+    const parChip = await page.locator('.objective__footer .chip').first().innerText();
+    check(/prorroga/i.test(parChip), `chip entra em prorrogação (${parChip.trim()})`);
+
     // ---------- RECOMPENSA (save manipulado para concluir o estágio) ----------
     await page.evaluate(() => {
       const raw = localStorage.getItem('blockbound.run.v1');

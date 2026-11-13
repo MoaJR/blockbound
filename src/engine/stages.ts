@@ -22,7 +22,7 @@ export const MODIFIERS: ModifierDef[] = [
   { id: 'heavy', name: 'Gravidade Pesada', desc: 'Peças maiores aparecem com muito mais frequência.', tone: 'bad' },
   { id: 'frozen_start', name: 'Verniz de Gelo', desc: 'O tabuleiro começa com 4 células congeladas.', tone: 'wild' },
   { id: 'corrupt_start', name: 'Semente Corrompida', desc: 'O tabuleiro começa com 4 células corrompidas.', tone: 'wild' },
-  { id: 'low_moves', name: 'Turno Curto', desc: '3 jogadas a menos, mas +15% de pontos.', tone: 'wild' },
+  { id: 'low_moves', name: 'Par Curto', desc: '3 jogadas de par a menos, mas +15% de pontos.', tone: 'wild' },
   { id: 'prism_rain', name: 'Chuva de Prismas', desc: 'Peças especiais aparecem com o dobro de chance.', tone: 'good' },
   { id: 'combo_hunger', name: 'Fome de Combo', desc: 'O combo cresce mais rápido neste estágio.', tone: 'good' },
 ];
@@ -42,13 +42,16 @@ export const STAGE_TITLES = [
   'Última Fronteira',
 ];
 
-const MOVES_BY_STAGE = [20, 21, 22, 24, 24, 25, 26, 26];
+/**
+ * Par de jogadas por câmara. Não é um limite: passar do par entra em
+ * prorrogação (pressão no tabuleiro) e zera o bônus de eficiência.
+ */
+const PAR_BY_STAGE = [30, 34, 38, 42, 46, 50, 54, 58];
 
 const PRIMARY_WEIGHTS: { kind: ObjectiveKind; weight: number }[] = [
-  { kind: 'score', weight: 30 },
-  { kind: 'lines', weight: 30 },
+  { kind: 'score', weight: 34 },
+  { kind: 'lines', weight: 34 },
   { kind: 'double', weight: 14 },
-  { kind: 'survive', weight: 14 },
   { kind: 'corrupt', weight: 12 },
   { kind: 'combo', weight: 8 },
 ];
@@ -68,7 +71,7 @@ interface ObjectiveScale {
 
 function objectiveScale(index: number): ObjectiveScale {
   return {
-    score: 1000 + index * 950,
+    score: 1200 + index * 300,
     lines: 7 + Math.round(index * 1.4),
     double: 2 + Math.floor(index / 2),
     survive: 12 + index * 2,
@@ -137,7 +140,7 @@ export function buildStage(params: StageBuildParams): StageBuild {
     let primary: ObjectiveKind;
     if (index === 0) primary = 'score';
     else if (index === 1) primary = 'lines';
-    else if (index === 2) primary = rng.chance(0.5) ? 'double' : 'survive';
+    else if (index === 2) primary = rng.chance(0.5) ? 'double' : 'corrupt';
     else {
       const pool = PRIMARY_WEIGHTS.filter((entry) => entry.kind !== 'combo' || index >= 4);
       primary =
@@ -158,11 +161,11 @@ export function buildStage(params: StageBuildParams): StageBuild {
     }
   }
 
-  let moves = MOVES_BY_STAGE[index] ?? 24;
-  if (isBoss) moves += 2;
+  let moves = PAR_BY_STAGE[index] ?? 30;
+  if (isBoss) moves = Math.max(moves, 42);
   moves += mods.extraMoves;
   if (modifier === 'low_moves') moves -= 3;
-  moves = Math.max(12, moves);
+  moves = Math.max(18, moves);
 
   const powersOff = modifier === 'precise' || modifier === 'no_powers';
   const charges = emptyCharges();

@@ -27,7 +27,9 @@ Requisitos: Node 20.19+ (validado em Node 24). O smoke test usa o Chromium do ca
 - Ao completar uma **linha ou coluna** inteira, ela é destruída e pontua.
 - Completar **várias linhas de uma vez** gera bônus e multiplicador de combo.
 - Quando as três peças são usadas, uma nova bandeja é sorteada. O gerador garante que **sempre existe ao menos uma peça encaixável** (e prefere bandejas com 2+ opções válidas).
-- Cada estágio tem **objetivo(s)** e um limite de **jogadas**. Se o tabuleiro travar sem poderes disponíveis, ou as jogadas acabarem antes do objetivo, a run termina.
+- Cada estágio tem **objetivo(s)** e um **par de jogadas**. O par **não é um limite**: passar dele não encerra a run — você entra em **prorrogação** e, a cada 2 jogadas extras, uma célula do tabuleiro é corrompida (a pressão substitui o relógio). A run só termina quando o tabuleiro trava sem poderes ou resgates.
+- **Bônus de eficiência:** concluir a câmara dentro do par converte cada jogada economizada em **+20 pontos** e cristais. O chip do HUD mostra `Par · n` e vira `Prorrogação · n` quando você passa.
+- **Segunda Chance:** uma vez por run, se a bandeja travar sem poderes e sem a Fênix, o tabuleiro é parcialmente limpo em vez de encerrar a run.
 - **Durante a fase** a barra de **energia** enche com posicionamentos, linhas, combos e purificação; ao atingir 100% você escolhe uma recompensa (carga, novo poder, evolução, energia, cristais ou fragmentos). **Eventos** (baú, portal, mercador, santuário e fragmentos) também aparecem durante o estágio, sem interromper o fluxo.
 - Ao concluir um estágio, escolha **1 entre 3 (ou 4)** relíquias e siga para o próximo. Vencer o estágio 8 encerra a run em **vitória**.
 
@@ -79,14 +81,14 @@ total          = (posicionamento + linha + bônus) × combo × multiplicador glo
 | --- | --- |
 | 1 | Objetivo de pontuação (introdução) |
 | 2 | Objetivo de destruição de linhas |
-| 3 | Precisão (limpezas duplas) ou sobrevivência + modificador |
+| 3 | Precisão (limpezas duplas) ou purificação + modificador |
 | 4 | **Chefe** (sorteado) |
 | 5–7 | Objetivos variados, objetivos secundários e modificadores |
 | 8 | **Chefe final**, com vida ampliada (+25%) |
 
-Objetivos possíveis: pontuação, linhas destruídas, limpezas duplas, sobreviver N jogadas, destruir corrupção, alcançar combo e derrotar chefe.
+Objetivos possíveis: pontuação, linhas destruídas, limpezas duplas, destruir corrupção, alcançar combo e derrotar chefe.
 
-Modificadores: estágio preciso (sem poderes/especiais), silêncio arcano, gravidade pesada (peças grandes), verniz de gelo, semente corrompida, turno curto, chuva de prismas e fome de combo.
+Modificadores: estágio preciso (sem poderes/especiais), silêncio arcano, gravidade pesada (peças grandes), verniz de gelo, semente corrompida, par curto, chuva de prismas e fome de combo.
 
 ### Chefes
 
@@ -280,7 +282,7 @@ O ambiente não possui encoders de áudio (sem `ffmpeg` de áudio, `sox`, `lame`
 
 - Interface em **pt-BR** apenas (textos organizados para futura i18n).
 - Sem personagens/temas cosméticos desbloqueáveis e sem service worker/offline (o jogo funciona 100% local após o carregamento).
-- O balanceamento dos alvos de objetivo é parametrizado em `stages.ts` e pode ser ajustado sem tocar na UI.
+- O balanceamento dos alvos e do par é parametrizado em `stages.ts` e validado por um harness determinístico (`src/engine/balance.test.ts`), que simula runs com o engine real e falha se a primeira câmara ficar impossível ou a progressão virar parede.
 - A trilha é sintetizada em tempo real (Web Audio) porque o ambiente não possui encoder de áudio (OGG/MP3) — não há arquivos de música externos. A validação automatizada confirma desbloqueio, tema e sequenciador; a audição física em Safari/iOS e Android é recomendada manualmente.
 - A prévia usa a **fórmula real** de pontuação para o posicionamento + linhas. Efeitos de relíquias que destroem células extras **depois** da limpeza (Cristal Explosivo, Coroa do Vazio, TNT) não alteram esse valor e não são simulados no preview — eles acontecem normalmente ao confirmar.
 - O smoke test manipula o save apenas para acelerar cenários de recompensa/vitória; toda a lógica de conclusão é executada pelo motor real.

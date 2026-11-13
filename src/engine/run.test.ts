@@ -136,14 +136,36 @@ describe('linhas, pontuação e objetivos', () => {
     expect(result.state.stageScore).toBeGreaterThanOrEqual(5);
   });
 
-  it('perde quando as jogadas acabam', () => {
+  it('entra em prorrogação em vez de encerrar quando o par acaba', () => {
     const run = freshRun(8);
     run.stage.objectives = [createObjective('survive', 500)];
     run.stage.movesLeft = 1;
     const spot = firstSpot(run, 0);
     const result = placePiece(run, 0, spot.r, spot.c);
-    expect(result.state.status).toBe('gameOver');
-    expect(result.state.overReason).toBe('moves');
+    expect(result.state.status).toBe('playing');
+    expect(result.state.stage.movesLeft).toBe(0);
+
+    const next = firstSpot(result.state, 1);
+    const overtime = placePiece(result.state, 1, next.r, next.c);
+    expect(overtime.state.status).toBe('playing');
+    expect(overtime.state.stage.movesLeft).toBe(-1);
+    const toast = overtime.events.find(
+      (event) => event.type === 'toast' && event.text.includes('Prorrogação'),
+    );
+    expect(toast).toBeTruthy();
+  });
+
+  it('paga bônus de eficiência ao concluir a câmara dentro do par', () => {
+    const run = freshRun(11);
+    run.stage.objectives = [createObjective('score', 5)];
+    run.stage.movesLeft = 20;
+    run.stage.movesTotal = 20;
+    const spot = firstSpot(run, 0);
+    const result = placePiece(run, 0, spot.r, spot.c);
+    expect(result.state.status).toBe('stageClear');
+    // 19 jogadas de par restantes × 20 pontos
+    expect(result.state.stats.efficiencyBonus).toBeGreaterThan(0);
+    expect(result.state.crystals).toBeGreaterThan(0);
   });
 
   it('perde quando o tabuleiro trava sem resgate', () => {
@@ -151,6 +173,7 @@ describe('linhas, pontuação e objetivos', () => {
     fillBoard(run);
     setTrayShape(run, 0, 'duo-0');
     run.stage.charges = { hammer: 1, bomb: 0, drill: 0, convert: 0, shuffle: 0, wildcard: 0 };
+    run.secondChanceUsed = true;
     // ainda há um martelo de resgate, então não é considerado travado
     expect(isStuck(run)).toBe(false);
     // o martelo abre apenas um buraco: a dupla não encaixa e não há mais resgate
@@ -158,6 +181,25 @@ describe('linhas, pontuação e objetivos', () => {
     expect(result.ok).toBe(true);
     expect(result.state.status).toBe('gameOver');
     expect(result.state.overReason).toBe('blocked');
+  });
+
+  it('segunda chance reinicia o tabuleiro uma vez antes da derrota', () => {
+    const run = freshRun(12);
+    fillBoard(run);
+    setTrayShape(run, 0, 'duo-0');
+    // consome o único poder disponível: o resgate precisa vir da Segunda Chance
+    run.stage.charges = { hammer: 0, bomb: 0, drill: 0, convert: 0, shuffle: 1, wildcard: 0 };
+    run.relics = [];
+    run.phoenixUsed = true;
+    run.secondChanceUsed = false;
+    const result = usePower(run, 'shuffle');
+    expect(result.ok).toBe(true);
+    expect(result.state.secondChanceUsed).toBe(true);
+    expect(result.state.status).toBe('playing');
+    expect(countFilled(result.state.board)).toBeLessThan(81);
+    expect(
+      result.events.some((event) => event.type === 'toast' && event.text.includes('Segunda Chance')),
+    ).toBe(true);
   });
 
   it('prévia informa as linhas que serão completadas', () => {

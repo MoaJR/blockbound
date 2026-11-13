@@ -101,6 +101,7 @@ export interface StageState {
   index: number;
   number: number;
   objectives: Objective[];
+  /** Par de jogadas da câmara. Não é limite: fica negativo na prorrogação. */
   movesLeft: number;
   movesTotal: number;
   modifier: ModifierId | null;
@@ -174,6 +175,8 @@ export interface RunStats {
   frozenThawed: number;
   bestDrop: number;
   bosses: number;
+  /** Pontos ganhos por concluir câmaras abaixo do par de jogadas. */
+  efficiencyBonus: number;
 }
 
 export type RunStatus = 'playing' | 'stageClear' | 'gameOver' | 'victory';
@@ -277,6 +280,8 @@ export interface RunState {
   stats: RunStats;
   crystals: number;
   phoenixUsed: boolean;
+  /** Resgate único de emergência quando a bandeja trava sem poderes (1 por run). */
+  secondChanceUsed: boolean;
   recallUsed: boolean;
   extraMovesEarned: number;
   startedAt: number;

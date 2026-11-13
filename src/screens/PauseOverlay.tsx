@@ -50,9 +50,11 @@ export function PauseOverlay({ api }: PauseOverlayProps) {
           <strong>{run.score.toLocaleString('pt-BR')}</strong>
         </div>
         <div>
-          <span>Jogadas</span>
+          <span>{stage.movesLeft < 0 ? 'Prorrogação' : 'Par'}</span>
           <strong>
-            {stage.movesLeft}/{stage.movesTotal}
+            {stage.movesLeft < 0
+              ? `+${-stage.movesLeft}`
+              : `${stage.movesLeft}/${stage.movesTotal}`}
           </strong>
         </div>
         <div>

@@ -589,6 +589,12 @@
   color: var(--ink-mute);
 }
 
+.result__score em.result__efficiency {
+  color: #ffdf8f;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
 .result__grid {
   position: relative;
   z-index: 2;

@@ -5,6 +5,7 @@ import { DEFAULT_UNLOCKED } from './engine/relics';
 import { DEFAULT_POWERS, POWER_ORDER, defaultPowerLevels } from './engine/powers';
 import { energyMaxFor, initialEnergy } from './engine/progression';
 import { deriveMods } from './engine/relics';
+import { newStats } from './engine/run';
 
 const META_KEY = 'blockbound.meta.v1';
 const RUN_KEY = 'blockbound.run.v1';
@@ -155,6 +156,8 @@ function migrateRun(raw: RunState): RunState {
     if (!levels[id] || levels[id] < 1) levels[id] = 1;
   }
   run.powerLevels = levels;
+  run.stats = { ...newStats(), ...(run.stats ?? {}) };
+  run.secondChanceUsed = Boolean(run.secondChanceUsed);
   run.fragments = typeof run.fragments === 'number' ? run.fragments : 0;
   run.pendingEvent = run.pendingEvent ?? null;
   run.eventMoves = typeof run.eventMoves === 'number' ? run.eventMoves : 0;

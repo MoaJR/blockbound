@@ -40,7 +40,7 @@ export const TALENTS: TalentDef[] = [
   {
     id: 'vital_moves',
     name: 'Fôlego Extra',
-    desc: '+1 jogada em cada estágio (máximo 2).',
+    desc: '+1 de par em cada câmara (máximo 2) — mais bônus de eficiência.',
     maxLevel: 2,
     baseCost: 320,
   },

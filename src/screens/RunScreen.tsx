@@ -1345,7 +1345,10 @@ export function RunScreen({ api, reducedMotion }: RunScreenProps) {
       </AnimatePresence>
 
       <div className="sr-only" aria-live="polite">
-        {run.score} pontos. Estágio {stage.number}. {stage.movesLeft} jogadas restantes.
+        {run.score} pontos. Estágio {stage.number}.{' '}
+        {stage.movesLeft >= 0
+          ? `${stage.movesLeft} jogadas de par restantes.`
+          : `Prorrogação: ${-stage.movesLeft} jogadas além do par.`}
       </div>
     </div>
   );

@@ -26,6 +26,7 @@ import {
   pieceCells,
   placementsFor,
   rowCells,
+  spawnCorruption,
   writePiece,
 } from './board';
 import { generateTray, trayHasPlacement } from './pieces';
@@ -52,6 +53,11 @@ export type { PreviewInfo } from './preview';
 export { claimEnergyReward, resolveStageEvent, energyForPlacement } from './progression';
 export type { ActionResult } from './types';
 
+/** Pontos por jogada de par não usada ao concluir a câmara. */
+export const EFFICIENCY_POINTS = 20;
+/** A cada N jogadas de prorrogação, 1 célula corrompe. */
+export const OVERTIME_PRESSURE_EVERY = 2;
+
 function fail(state: RunState, reason: string): ActionResult {
   return { ok: false, state, events: [{ type: 'invalid', reason }], reason };
 }
@@ -60,7 +66,7 @@ function cloneRun(state: RunState): RunState {
   return structuredClone(state);
 }
 
-function newStats(): RunStats {
+export function newStats(): RunStats {
   return {
     placements: 0,
     lines: 0,
@@ -72,6 +78,7 @@ function newStats(): RunStats {
     frozenThawed: 0,
     bestDrop: 0,
     bosses: 0,
+    efficiencyBonus: 0,
   };
 }
 
@@ -145,6 +152,7 @@ export function createRun(meta: MetaSnapshot, seed: number, startedAt = Date.now
     stats: newStats(),
     crystals: 0,
     phoenixUsed: false,
+    secondChanceUsed: false,
     recallUsed: false,
     extraMovesEarned: 0,
     startedAt,
@@ -245,8 +253,27 @@ function completeStage(state: RunState, rng: Rng, events: GameEvent[]): void {
   const bonus = 200 + state.stage.number * 60 + emptyBonus;
   state.score += bonus;
   state.stageScore += bonus;
-  setObjectiveProgress(state.stage.objectives, 'score', state.stageScore);
   events.push({ type: 'score', amount: bonus, total: state.score });
+
+  // Bônus de eficiência: terminar dentro do par compra pontos e cristais.
+  // (Passar do par não encerra a run — vira prorrogação com pressão no tabuleiro.)
+  const parLeft = Math.max(0, state.stage.movesLeft);
+  if (parLeft > 0) {
+    const efficiency = parLeft * EFFICIENCY_POINTS;
+    state.score += efficiency;
+    state.stageScore += efficiency;
+    state.stats.efficiencyBonus += efficiency;
+    const crystals = Math.floor(parLeft / 2);
+    if (crystals > 0) state.crystals += crystals;
+    events.push({ type: 'score', amount: efficiency, total: state.score });
+    events.push({
+      type: 'toast',
+      text: `Bônus de eficiência +${efficiency} · ${parLeft} jogadas abaixo do par`,
+      tone: 'gold',
+    });
+  }
+
+  setObjectiveProgress(state.stage.objectives, 'score', state.stageScore);
   if (state.stage.isBoss) state.stats.bosses += 1;
 
   if (state.stage.isFinal) {
@@ -279,8 +306,32 @@ function canRescue(state: RunState): boolean {
   return false;
 }
 
+/**
+ * Prorrogação: passar do par não encerra a run, mas o tabuleiro começa a ceder
+ * (1 corrupção a cada 2 jogadas extras). É a pressão que substitui o relógio.
+ */
+function applyOvertimePressure(state: RunState, rng: Rng, events: GameEvent[]): void {
+  const overtime = -state.stage.movesLeft;
+  if (overtime <= 0) return;
+  if (overtime === 1) {
+    events.push({
+      type: 'toast',
+      text: 'Prorrogação: você passou do par e o tabuleiro começa a ceder.',
+      tone: 'bad',
+    });
+  }
+  if (overtime % OVERTIME_PRESSURE_EVERY !== 0) return;
+  if (emptyCoords(state.board).length <= 12) return;
+  const cells = spawnCorruption(state.board, 1, rng, 12);
+  if (cells.length > 0) events.push({ type: 'spawn', cells, kind: 'corrupt' });
+}
+
 function postTurn(state: RunState, rng: Rng, events: GameEvent[]): void {
   if (state.tray.every((piece) => piece === null)) refillTray(state, rng, events);
+  // A pressão da prorrogação entra ANTES da checagem de encaixe: se ela travar
+  // o tabuleiro, a cadeia de resgates abaixo ainda pode salvar a run.
+  applyOvertimePressure(state, rng, events);
+
   if (!trayHasPlacement(state.board, state.tray, state.wildcardArmed)) {
     if (canRescue(state)) {
       events.push({
@@ -289,6 +340,21 @@ function postTurn(state: RunState, rng: Rng, events: GameEvent[]): void {
         tone: 'bad',
       });
       return;
+    }
+    // Segunda Chance: resgate único por run, antes de qualquer relíquia.
+    if (!state.secondChanceUsed) {
+      state.secondChanceUsed = true;
+      const filled = filledCoords(state.board);
+      const count = Math.max(4, Math.floor(filled.length * 0.3));
+      const removed = destroyCells(state.board, rng.shuffle(filled).slice(0, count));
+      events.push({ type: 'rescue', cells: removed });
+      events.push({
+        type: 'toast',
+        text: 'Segunda Chance: o tabuleiro respira de novo!',
+        tone: 'info',
+      });
+      refillTray(state, rng, events);
+      if (trayHasPlacement(state.board, state.tray, state.wildcardArmed)) return;
     }
     if (hasRelic(state.relics, 'phoenix_crystal') && !state.phoenixUsed) {
       state.phoenixUsed = true;
@@ -303,12 +369,6 @@ function postTurn(state: RunState, rng: Rng, events: GameEvent[]): void {
     state.status = 'gameOver';
     state.overReason = 'blocked';
     events.push({ type: 'gameOver', reason: 'blocked' });
-    return;
-  }
-  if (state.stage.movesLeft <= 0) {
-    state.status = 'gameOver';
-    state.overReason = 'moves';
-    events.push({ type: 'gameOver', reason: 'moves' });
   }
 }
 
@@ -354,7 +414,7 @@ export function placePiece(
 
   state.stats.placements += 1;
   state.moveCount += 1;
-  state.stage.movesLeft = Math.max(0, state.stage.movesLeft - 1);
+  state.stage.movesLeft -= 1;
   events.push({ type: 'place', cells, color: piece.color, special: piece.special });
 
   const blocks = piece.cells.length;
@@ -575,10 +635,6 @@ export function placePiece(
   );
   if (objectivesDone) {
     completeStage(state, rng, events);
-  } else if (state.stage.movesLeft <= 0) {
-    state.status = 'gameOver';
-    state.overReason = 'moves';
-    events.push({ type: 'gameOver', reason: 'moves' });
   } else {
     postTurn(state, rng, events);
     // Recompensas in-run só depois de confirmar que o estágio continua jogável.
@@ -914,7 +970,7 @@ export function abandonRun(stateIn: RunState): ActionResult {
 export function computeCrystals(state: RunState): number {
   const mods = getMods(state);
   const base =
-    state.score / 140 +
+    state.score / 200 +
     state.stage.number * 30 +
     state.maxCombo * 5 +
     state.totalLines * 3 +
